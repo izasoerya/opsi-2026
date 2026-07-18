@@ -1,0 +1,19 @@
+{
+  "name": "ADS1115Sensor",
+  "version": "1.0.0",
+  "description": "Sensor wrapper/driver for the ADS1115 I2C ADC, built on top of RobTillaart's ADS1X15 library.",
+  "keywords": ["adc", "i2c", "sensor", "ads1115", "ads1x15"],
+  "authors": [
+    {
+      "name": "Iza"
+    }
+  ],
+  "frameworks": "arduino",
+  "platforms": ["espressif32"],
+  "dependencies": {
+    "robtillaart/ADS1X15": "^0.6.2"
+  },
+  "build": {
+    "srcDir": "src"
+  }
+}

@@ -1,13 +1,7 @@
-#include <cstring>
 #if !defined(KALMAN_FILTER)
 #define KALMAN_FILTER
 
-class BaseFilter
-{
-public:
-    virtual ~BaseFilter() = default;
-    virtual void filter(float &raw) = 0; // Pass by reference to modify in-place
-};
+#include "base_filter.h"
 
 class KalmanFilter : public BaseFilter
 {
@@ -35,31 +29,6 @@ public:
 
         // Return filtered value
         raw = _x;
-    }
-};
-
-class MovingAverageFilter : public BaseFilter
-{
-private:
-    static const unsigned char BUFFER_SIZE = 5;
-    float _buffer[BUFFER_SIZE];
-    int _index = 0;
-
-public:
-    MovingAverageFilter() { memset(_buffer, 0, sizeof(_buffer)); }
-    ~MovingAverageFilter() override = default;
-
-    void filter(float &raw) override
-    {
-        _buffer[_index] = raw;
-        _index = (_index + 1) % BUFFER_SIZE;
-
-        float sum = 0.0f;
-        for (int i = 0; i < BUFFER_SIZE; i++)
-        {
-            sum += _buffer[i];
-        }
-        raw = sum / BUFFER_SIZE;
     }
 };
 

@@ -71,10 +71,9 @@ WiFiBlynk blynk(
 
 MockDisplayOLED display(&Wire, ADDRESS_OLED);
 
-OneWire onewire(PIN_DS18);
 ADS1115Module ads(ADS1115_ADDRESS, &Wire);
 
-MockDS18B20Sensor waterTemperatureSensor(1, "Water Temp Analog", &onewire);
+MockDS18B20Sensor waterTemperatureSensor(1, "Water Temp Analog", PIN_DS18);
 // MockPHDFRobotSensor phSensor(1, "PH DFRobot", 0, &ads);
 ADSSensor phTemperatureSensor(1, "PH Temperature Sensor", 0, &ads, [&](float value) -> float
                               { return value * 3.3 / 4095.0 * 100.0; }); // 10mV/°C linear sensor

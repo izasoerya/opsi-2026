@@ -7,13 +7,13 @@
 class DS18B20Sensor : public BaseSensor
 {
 private:
-    OneWire *_onewire;
+    OneWire _onewire;
     DS18B20 _sensor;
 
 public:
     DS18B20Sensor(unsigned char id, const char *name,
-                  OneWire *onewire)
-        : BaseSensor(id, name), _onewire(onewire), _sensor(_onewire) {}
+                  uint8_t pin)
+        : BaseSensor(id, name), _onewire(OneWire(pin)), _sensor(&_onewire) {}
 
     ~DS18B20Sensor() override = default;
 
@@ -35,13 +35,13 @@ public:
 class MockDS18B20Sensor : public BaseSensor
 {
 private:
-    OneWire *_onewire;
+    OneWire _onewire;
     DS18B20 _sensor;
 
 public:
     MockDS18B20Sensor(unsigned char id, const char *name,
-                      OneWire *onewire)
-        : BaseSensor(id, name), _onewire(onewire), _sensor(_onewire) {}
+                      uint8_t pin)
+        : BaseSensor(id, name), _onewire(OneWire(pin)), _sensor(&_onewire) {}
 
     ~MockDS18B20Sensor() override = default;
 

@@ -76,7 +76,7 @@ ADS1115Module ads(ADS1115_ADDRESS, &Wire);
 
 MockDS18B20Sensor waterTemperatureSensor(1, "Water Temp Analog", &onewire);
 // MockPHDFRobotSensor phSensor(1, "PH DFRobot", 0, &ads);
-MovingAverageFilter filterPH;
+MovingAverageFilter filterPH(20);
 MockPH4502CSensor phSensor(1, "PH Sensor", 1, &ads, &filterPH);
 MockTDSDFRobotSensor tdsSensor(1, "TDS DFRobot", &waterTemperatureSensor, 1, &ads);
 MockUltrasonicSensor waterLevelSensor(1, "Water Level Analog", PIN_ECHO, PIN_TRIG);

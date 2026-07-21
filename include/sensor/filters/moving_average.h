@@ -6,29 +6,29 @@
 class MovingAverageFilter : public BaseFilter
 {
 private:
-    static const unsigned char BUFFER_SIZE = 5;
-    float _buffer[BUFFER_SIZE];
-    int _index = 0;
+    float *_buffer;
+    uint8_t _windowSize;
+    uint8_t _index = 0;
 
 public:
-    MovingAverageFilter()
+    MovingAverageFilter(uint8_t windowSize = 10) : _windowSize(windowSize), _buffer(new float[_windowSize])
     {
-        for (int i = 0; i < BUFFER_SIZE; i++)
+        for (int i = 0; i < _windowSize; i++)
             _buffer[i] = 0;
     }
-    ~MovingAverageFilter() override = default;
+    ~MovingAverageFilter() override { delete[] _buffer; }
 
     void filter(float &raw) override
     {
         _buffer[_index] = raw;
-        _index = (_index + 1) % BUFFER_SIZE;
+        _index = (_index + 1) % _windowSize;
 
         float sum = 0.0f;
-        for (int i = 0; i < BUFFER_SIZE; i++)
+        for (int i = 0; i < _windowSize; i++)
         {
             sum += _buffer[i];
         }
-        raw = sum / BUFFER_SIZE;
+        raw = sum / _windowSize;
     }
 };
 

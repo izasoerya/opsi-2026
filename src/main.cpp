@@ -1,6 +1,11 @@
 #include <Arduino.h>
 #include <SoftwareSerial.h>
 #include <ArduinoJson.h>
+#include <ElegantOTA.h>
+#include <WebSerial.h>
+
+#include "../utils/utils.h"
+#include "../utils/parser.h"
 
 #include "sensor/configs/modbus_sensor.h"
 #include "sensor/configs/ads_sensor.h"
@@ -42,14 +47,15 @@
 #define ADDRESS_ADS1115 0x48 // TODO: CHANGE TO ACTUAL ADDRESS
 #define ADDRESS_OLED 0x3C    // TODO: CHANGE TO ACTUAL ADDRESS
 
-const char *ssid = "faizareborn";
-const char *password = "faiza221977";
-// const char *hostName = "ws-brin-bandung-1";
+const char *ssid = "Subhanallah 4G";
+const char *password = "muhammadnabiyullah";
+const char *hostName = "aquaponic-1";
 const char *blynkAuthToken = "d2oR-C4x_VlT26WNVydzEKntp-865JkX";
 WiFiBlynk blynk(
     blynkAuthToken,
     ssid,
     password,
+    hostName,
     [](uint8_t virtualPin, bool state)
     {
         if (virtualPin == BLYNK_WATER_PUMP_PIN)
@@ -71,12 +77,15 @@ MockTDSDFRobotSensor tdsSensor(1, "TDS DFRobot", &waterTemperatureSensor, 1, &ad
 MockUltrasonicSensor waterLevelSensor(1, "Water Level Analog", PIN_ECHO, PIN_TRIG);
 MockBH1750Sensor lightIntensitySensor(1, "Light Intensity Analog", &Wire, ADDRESS_BH1750);
 
+AppState state = AppState::NORMAL_MODE;
 uint64_t prevBlynkSensor = 0;
+AsyncWebServer server(80);
 
 void setup()
 {
     Serial.begin(115200);
-    blynk.begin();
+    if (!blynk.begin())
+        Serial.println("WiFi is not connected, disabling OTA!");
 
     display.begin();
 
@@ -87,11 +96,28 @@ void setup()
     waterTemperatureSensor.begin();
     waterLevelSensor.begin();
     lightIntensitySensor.begin();
+
+    WebSerial.begin(&server);
+    WebSerial.onMessage(
+        [&](uint8_t *data, size_t len)
+        {
+            String d = "";
+            for (uint8_t i = 0; i < len; i++)
+                d += char(data[i]);
+            state = Parser::parseCommand(d.c_str());
+        });
+
+    ElegantOTA.begin(&server);
+    ElegantOTA.setAutoReboot(true);
+
+    server.begin();
 }
 
 void loop()
 {
     blynk.run();
+    blynk.reconnect();
+    ElegantOTA.loop();
     tdsSensor.update();
     phSensor.update();
 

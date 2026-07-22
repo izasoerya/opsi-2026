@@ -86,17 +86,20 @@ private:
     ADS1115Module *_ads = nullptr;
 
     BaseFilter *_filter = nullptr;
+    BaseSensor *_temperatureSensor = nullptr;
 
 public:
     MockPH4502CSensor(
         unsigned char id, const char *name,
-        uint8_t channelADS, ADS1115Module *ads, BaseFilter *filter = nullptr)
-        : BaseSensor(id, name), _channelADS(channelADS), _ads(ads), _filter(filter) {}
+        uint8_t channelADS, ADS1115Module *ads,
+        BaseFilter *filter = nullptr, BaseSensor *temperatureSensor = nullptr)
+        : BaseSensor(id, name), _channelADS(channelADS), _ads(ads), _filter(filter), _temperatureSensor(temperatureSensor) {}
 
     MockPH4502CSensor(
         unsigned char id, const char *name,
-        uint8_t pinAnalog, BaseFilter *filter = nullptr)
-        : BaseSensor(id, name), _pinAnalog(pinAnalog), _filter(filter) {}
+        uint8_t pinAnalog,
+        BaseFilter *filter = nullptr, BaseSensor *temperatureSensor = nullptr)
+        : BaseSensor(id, name), _pinAnalog(pinAnalog), _filter(filter), _temperatureSensor(temperatureSensor) {}
 
     ~MockPH4502CSensor() override = default;
 

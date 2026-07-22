@@ -6,6 +6,7 @@
 
 #include "../utils/utils.h"
 #include "../utils/parser.h"
+#include "models.h"
 
 #include "sensor/configs/modbus_sensor.h"
 #include "sensor/configs/ads_sensor.h"
@@ -129,11 +130,30 @@ void loop()
 
     if (millis() - prevBlynkSensor > 30000)
     {
-        blynk.send(BLYNK_AMBIENT_LIGHT_PIN, lightIntensitySensor.read());
-        blynk.send(BLYNK_WATER_LEVEL_PIN, waterLevelSensor.read());
-        blynk.send(BLYNK_WATER_PH_PIN, phSensor.read());
-        blynk.send(BLYNK_WATER_TEMPERATURE_PIN, waterTemperatureSensor.read());
-        blynk.send(BLYNK_TDS_PIN, tdsSensor.read());
+        SensorEntity sensor{
+            .lightIntensity = uint16_t(lightIntensitySensor.read()),
+            .waterLevel = waterLevelSensor.read(),
+            .waterPH = phSensor.read(),
+            .waterTemperature = waterTemperatureSensor.read(),
+            .waterTDS = tdsSensor.read(),
+        };
+        const char *sensorString = sensor.toString();
+        WebSerial.println(sensorString);
+
+        SystemEntity system{
+            .freeHeap = ESP.getFreeHeap(),
+            .largestFreeBlock = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT),
+            .minFreeHeap = ESP.getMinFreeHeap(),
+            .lastResetReason = esp_reset_reason(),
+        };
+        const char *systemString = system.toString();
+        WebSerial.println(systemString);
+
+        blynk.send(BLYNK_AMBIENT_LIGHT_PIN, sensor.lightIntensity);
+        blynk.send(BLYNK_WATER_LEVEL_PIN, sensor.waterLevel);
+        blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
+        blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
+        blynk.send(BLYNK_WATER_TEMPERATURE_PIN, sensor.waterTemperature);
 
         char buffer[64];
         snprintf(buffer, sizeof(buffer),

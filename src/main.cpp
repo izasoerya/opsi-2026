@@ -50,6 +50,8 @@
 #define ADDRESS_BH1750 0x23  // TODO: CHANGE TO ACTUAL ADDRESS
 #define ADDRESS_ADS1115 0x48 // TODO: CHANGE TO ACTUAL ADDRESS
 #define ADDRESS_OLED 0x3C    // TODO: CHANGE TO ACTUAL ADDRESS
+#define ADS_CHANNEL_PH 0
+#define ADS_CHANNEL_TDS 1
 
 const char *ssid = "Subhanallah 4G";
 const char *password = "muhammadnabiyullah";
@@ -74,15 +76,26 @@ MockDisplayOLED display(&Wire, ADDRESS_OLED);
 
 ADS1115Module ads(ADS1115_ADDRESS, &Wire);
 
-MockDS18B20Sensor waterTemperatureSensor(1, "Water Temp Analog", PIN_DS18);
-// MockPHDFRobotSensor phSensor(1, "PH DFRobot", 0, &ads);
-ADSSensor phTemperatureSensor(1, "PH Temperature Sensor", 0, &ads, [&](float value) -> float
-                              { return value * 3.3 / 4095.0 * 100.0; }); // 10mV/°C linear sensor
-TrimmedMovingAverage filterPH(20, 5);
-MockPH4502CSensor phSensor(1, "PH Sensor", 1, &ads, &filterPH);
-MockTDSDFRobotSensor tdsSensor(1, "TDS DFRobot", &waterTemperatureSensor, 1, &ads);
-MockUltrasonicSensor waterLevelSensor(1, "Water Level Analog", PIN_ECHO, PIN_TRIG);
-MockBH1750Sensor lightIntensitySensor(1, "Light Intensity Analog", &Wire, ADDRESS_BH1750);
+MockDS18B20Sensor waterTemperatureSensor(
+    1, "Water Temperature",
+    PIN_DS18);
+
+MockPHDFRobotSensor phSensor(
+    1, "PH DFRobot",
+    ADS_CHANNEL_PH, &ads);
+
+MockTDSDFRobotSensor tdsSensor(
+    1, "TDS DFRobot",
+    ADS_CHANNEL_TDS, &ads,
+    &waterTemperatureSensor);
+
+MockUltrasonicSensor waterLevelSensor(
+    1, "Water Level",
+    PIN_ECHO, PIN_TRIG);
+
+MockBH1750Sensor lightIntensitySensor(
+    1, "Light Intensity",
+    &Wire, ADDRESS_BH1750);
 
 AppState state = AppState::NORMAL_MODE;
 uint64_t prevBlynkSensor = 0;

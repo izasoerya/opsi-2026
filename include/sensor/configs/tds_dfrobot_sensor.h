@@ -137,12 +137,12 @@ private:
 public:
     MockTDSDFRobotSensor(
         unsigned char id, const char *name,
-        BaseSensor *temperatureSensor, uint8_t channelADS, ADS1115Module *ads)
+        uint8_t channelADS, ADS1115Module *ads, BaseSensor *temperatureSensor = nullptr)
         : BaseSensor(id, name), _temperatureSensor(temperatureSensor), _channelADS(channelADS), _ads(ads) {}
 
     MockTDSDFRobotSensor(
         unsigned char id, const char *name,
-        BaseSensor *temperatureSensor, uint8_t pinAnalog)
+        uint8_t pinAnalog, BaseSensor *temperatureSensor = nullptr)
         : BaseSensor(id, name), _pinAnalog(pinAnalog) {}
 
     ~MockTDSDFRobotSensor() override = default;

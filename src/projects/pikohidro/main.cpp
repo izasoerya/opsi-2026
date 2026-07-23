@@ -62,10 +62,11 @@ MockPH4502CSensor phSensor(
     ADS_CHANNEL_PH, &ads,
     &filterPH, &phTemperatureSensor);
 
+TrimmedMovingAverage filterTDS(20, 5);
 MockTDSDFRobotSensor tdsSensor(
     1, "TDS Analog",
     ADS_CHANNEL_TDS, &ads,
-    &phTemperatureSensor);
+    &filterTDS, &phTemperatureSensor);
 
 AppState state = AppState::NORMAL_MODE;
 uint64_t prevBlynkSensor = 0;

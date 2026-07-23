@@ -18,44 +18,27 @@ private:
 
     const float _vref = 3.3;
     const uint16_t _adcResolution = 4095;
-    BaseSensor *_temperatureSensor = nullptr;
     ADS1115Module *_ads = nullptr;
 
-    uint16_t _getMedianNum(uint16_t bArray[], uint8_t iFilterLen)
-    {
-        uint16_t bTab[iFilterLen];
-        for (byte i = 0; i < iFilterLen; i++)
-            bTab[i] = bArray[i];
-        uint16_t i, j, bTemp;
-        for (j = 0; j < iFilterLen - 1; j++)
-        {
-            for (i = 0; i < iFilterLen - j - 1; i++)
-            {
-                if (bTab[i] > bTab[i + 1])
-                {
-                    bTemp = bTab[i];
-                    bTab[i] = bTab[i + 1];
-                    bTab[i + 1] = bTemp;
-                }
-            }
-        }
-        if ((iFilterLen & 1) > 0)
-            bTemp = bTab[(iFilterLen - 1) / 2];
-        else
-            bTemp = (bTab[iFilterLen / 2] + bTab[iFilterLen / 2 - 1]) / 2;
-        return bTemp;
-    }
+    BaseFilter *_filter = nullptr;
+    BaseSensor *_temperatureSensor = nullptr;
 
 public:
     TDSDFRobotSensor(
         unsigned char id, const char *name,
-        BaseSensor *temperatureSensor, uint8_t channelADS, ADS1115Module *ads)
-        : BaseSensor(id, name), _temperatureSensor(temperatureSensor), _channelADS(channelADS), _ads(ads) {}
+        uint8_t channelADS, ADS1115Module *ads,
+        BaseFilter *filter = nullptr, BaseSensor *temperatureSensor = nullptr)
+        : BaseSensor(id, name),
+          _channelADS(channelADS), _ads(ads),
+          _filter(filter), _temperatureSensor(temperatureSensor) {}
 
     TDSDFRobotSensor(
         unsigned char id, const char *name,
-        BaseSensor *temperatureSensor, uint8_t pinAnalog)
-        : BaseSensor(id, name), _pinAnalog(pinAnalog) {}
+        uint8_t pinAnalog,
+        BaseFilter *filter = nullptr, BaseSensor *temperatureSensor = nullptr)
+        : BaseSensor(id, name),
+          _pinAnalog(pinAnalog),
+          _filter(filter), _temperatureSensor(temperatureSensor) {}
 
     ~TDSDFRobotSensor() override = default;
 
@@ -70,19 +53,19 @@ public:
         if (millis() - _prevSampling > 40U)
         {
             _prevSampling = millis();
-            _rawBuffer[_arrayIndex] = _ads != nullptr ? _ads->read(_channelADS) : analogRead(_pinAnalog);
-            _arrayIndex++;
-            if (_arrayIndex == _windowSize)
-                _arrayIndex = 0;
+            float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
+
+            if (_filter != nullptr)
+                _filter->filter(val);
         }
     }
 
     float read() override
     {
-        uint16_t analogBufferTemp[_windowSize];
-        for (uint8_t copyIndex = 0; copyIndex < _windowSize; copyIndex++)
-            analogBufferTemp[copyIndex] = _rawBuffer[copyIndex];
-        float averageVoltage = _getMedianNum(analogBufferTemp, _windowSize) * (float)_vref / _adcResolution;
+        float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
+        if (_filter != nullptr)
+            _filter->filter(val);
+        float averageVoltage = val * (float)_vref / _adcResolution;
 
         float currentTemperature = _temperatureSensor != nullptr ? _temperatureSensor->read() : 25.0;
         float compensationCoefficient = 1.0 + 0.02 * (currentTemperature - 25.0);
@@ -106,44 +89,27 @@ private:
 
     const float _vref = 3.3;
     const uint16_t _adcResolution = 4095;
-    BaseSensor *_temperatureSensor = nullptr;
     ADS1115Module *_ads = nullptr;
 
-    uint16_t _getMedianNum(uint16_t bArray[], uint8_t iFilterLen)
-    {
-        uint16_t bTab[iFilterLen];
-        for (byte i = 0; i < iFilterLen; i++)
-            bTab[i] = bArray[i];
-        uint16_t i, j, bTemp;
-        for (j = 0; j < iFilterLen - 1; j++)
-        {
-            for (i = 0; i < iFilterLen - j - 1; i++)
-            {
-                if (bTab[i] > bTab[i + 1])
-                {
-                    bTemp = bTab[i];
-                    bTab[i] = bTab[i + 1];
-                    bTab[i + 1] = bTemp;
-                }
-            }
-        }
-        if ((iFilterLen & 1) > 0)
-            bTemp = bTab[(iFilterLen - 1) / 2];
-        else
-            bTemp = (bTab[iFilterLen / 2] + bTab[iFilterLen / 2 - 1]) / 2;
-        return bTemp;
-    }
+    BaseSensor *_temperatureSensor = nullptr;
+    BaseFilter *_filter = nullptr;
 
 public:
     MockTDSDFRobotSensor(
         unsigned char id, const char *name,
-        uint8_t channelADS, ADS1115Module *ads, BaseSensor *temperatureSensor = nullptr)
-        : BaseSensor(id, name), _temperatureSensor(temperatureSensor), _channelADS(channelADS), _ads(ads) {}
+        uint8_t channelADS, ADS1115Module *ads,
+        BaseFilter *filter = nullptr, BaseSensor *temperatureSensor = nullptr)
+        : BaseSensor(id, name),
+          _channelADS(channelADS), _ads(ads),
+          _filter(filter), _temperatureSensor(temperatureSensor) {}
 
     MockTDSDFRobotSensor(
         unsigned char id, const char *name,
-        uint8_t pinAnalog, BaseSensor *temperatureSensor = nullptr)
-        : BaseSensor(id, name), _pinAnalog(pinAnalog) {}
+        uint8_t pinAnalog,
+        BaseFilter *filter = nullptr, BaseSensor *temperatureSensor = nullptr)
+        : BaseSensor(id, name),
+          _pinAnalog(pinAnalog),
+          _filter(filter), _temperatureSensor(temperatureSensor) {}
 
     ~MockTDSDFRobotSensor() override = default;
 
@@ -158,19 +124,19 @@ public:
         if (millis() - _prevSampling > 40U)
         {
             _prevSampling = millis();
-            _rawBuffer[_arrayIndex] = _ads != nullptr ? random(4095) : random(4095);
-            _arrayIndex++;
-            if (_arrayIndex == _windowSize)
-                _arrayIndex = 0;
+            float val = _ads != nullptr ? float(random(4095)) : float(random(4095));
+
+            if (_filter != nullptr)
+                _filter->filter(val);
         }
     }
 
     float read() override
     {
-        uint16_t analogBufferTemp[_windowSize];
-        for (uint8_t copyIndex = 0; copyIndex < _windowSize; copyIndex++)
-            analogBufferTemp[copyIndex] = _rawBuffer[copyIndex];
-        float averageVoltage = _getMedianNum(analogBufferTemp, _windowSize) * (float)_vref / _adcResolution;
+        float val = _ads != nullptr ? float(random(4095)) : float(random(4095));
+        if (_filter != nullptr)
+            _filter->filter(val);
+        float averageVoltage = val * (float)_vref / _adcResolution;
 
         float currentTemperature = _temperatureSensor != nullptr ? _temperatureSensor->read() : 25.0;
         float compensationCoefficient = 1.0 + 0.02 * (currentTemperature - 25.0);

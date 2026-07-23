@@ -3,7 +3,16 @@
 
 #include "../base_sensor.h"
 #include "ads_sensor.h"
+#include "../filters/base_filter.h"
 
+/**
+ * @brief TDS DFROBOT Sensor Class
+ *
+ * @param uint8_t channelADS
+ * @param ADS1115Module *ads
+ * @param BaseFilter *filter
+ * @param BaseSensor *temperatureSensor
+ */
 class PHDFRobotSensor : public BaseSensor
 {
 private:
@@ -20,66 +29,20 @@ private:
     const uint16_t _adcResolution = 4095;
     ADS1115Module *_ads = nullptr;
 
-    double _avergearray(uint16_t *arr, uint8_t number)
-    {
-        uint8_t i;
-        uint16_t max, min;
-        double avg;
-        long amount = 0;
-
-        if (number < 5) // less than 5, calculated directly statistics
-        {
-            for (i = 0; i < number; i++)
-                amount += arr[i];
-            avg = amount / number;
-            return avg;
-        }
-        else
-        {
-            if (arr[0] < arr[1])
-            {
-                min = arr[0];
-                max = arr[1];
-            }
-            else
-            {
-                min = arr[1];
-                max = arr[0];
-            }
-            for (i = 2; i < number; i++)
-            {
-                if (arr[i] < min)
-                {
-                    amount += min; // arr<min
-                    min = arr[i];
-                }
-                else
-                {
-                    if (arr[i] > max)
-                    {
-                        amount += max; // arr>max
-                        max = arr[i];
-                    }
-                    else
-                    {
-                        amount += arr[i]; // min<=arr<=max
-                    }
-                } // if
-            } // for
-            avg = (double)amount / (number - 2);
-        } // if
-        return avg;
-    }
+    BaseFilter *_filter = nullptr;
+    BaseSensor *_sensor = nullptr;
 
 public:
     PHDFRobotSensor(
         unsigned char id, const char *name,
-        uint8_t channelADS, ADS1115Module *ads)
+        uint8_t channelADS, ADS1115Module *ads,
+        BaseFilter *_filter = nullptr, BaseSensor *_sensor = nullptr)
         : BaseSensor(id, name), _channelADS(channelADS), _ads(ads) {}
 
     PHDFRobotSensor(
         unsigned char id, const char *name,
-        uint8_t pinAnalog)
+        uint8_t pinAnalog,
+        BaseFilter *_filter = nullptr, BaseSensor *_sensor = nullptr)
         : BaseSensor(id, name), _pinAnalog(pinAnalog) {}
 
     ~PHDFRobotSensor() override = default;
@@ -95,25 +58,33 @@ public:
         if (millis() - _prevSampling > 40U)
         {
             _prevSampling = millis();
-            _rawBuffer[_arrayIndex] = _ads != nullptr ? _ads->read(_channelADS) : analogRead(_pinAnalog);
-            _arrayIndex++;
-            if (_arrayIndex == _windowSize)
-                _arrayIndex = 0;
+            float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
+
+            if (_filter != nullptr)
+                _filter->filter(val);
         }
     }
 
     float read() override
     {
-        uint16_t analogBufferTemp[_windowSize];
-        for (uint8_t copyIndex = 0; copyIndex < _windowSize; copyIndex++)
-            analogBufferTemp[copyIndex] = _rawBuffer[copyIndex];
-        float averageVoltage = _avergearray(analogBufferTemp, _windowSize) * (float)_vref / _adcResolution;
+        float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
+        if (_filter != nullptr)
+            _filter->filter(val);
+        float averageVoltage = val * (float)_vref / _adcResolution;
 
         float pHValue = 3.5 * averageVoltage + _offset;
         return pHValue;
     }
 };
 
+/**
+ * @brief TDS DFROBOT Sensor Class
+ *
+ * @param uint8_t channelADS
+ * @param ADS1115Module *ads
+ * @param BaseFilter *filter
+ * @param BaseSensor *temperatureSensor
+ */
 class MockPHDFRobotSensor : public BaseSensor
 {
 private:
@@ -130,66 +101,20 @@ private:
     const uint16_t _adcResolution = 4095;
     ADS1115Module *_ads = nullptr;
 
-    double _avergearray(uint16_t *arr, uint8_t number)
-    {
-        uint8_t i;
-        uint16_t max, min;
-        double avg;
-        long amount = 0;
-
-        if (number < 5) // less than 5, calculated directly statistics
-        {
-            for (i = 0; i < number; i++)
-                amount += arr[i];
-            avg = amount / number;
-            return avg;
-        }
-        else
-        {
-            if (arr[0] < arr[1])
-            {
-                min = arr[0];
-                max = arr[1];
-            }
-            else
-            {
-                min = arr[1];
-                max = arr[0];
-            }
-            for (i = 2; i < number; i++)
-            {
-                if (arr[i] < min)
-                {
-                    amount += min; // arr<min
-                    min = arr[i];
-                }
-                else
-                {
-                    if (arr[i] > max)
-                    {
-                        amount += max; // arr>max
-                        max = arr[i];
-                    }
-                    else
-                    {
-                        amount += arr[i]; // min<=arr<=max
-                    }
-                } // if
-            } // for
-            avg = (double)amount / (number - 2);
-        } // if
-        return avg;
-    }
+    BaseFilter *_filter = nullptr;
+    BaseSensor *_sensor = nullptr;
 
 public:
     MockPHDFRobotSensor(
         unsigned char id, const char *name,
-        uint8_t channelADS, ADS1115Module *ads)
+        uint8_t channelADS, ADS1115Module *ads,
+        BaseFilter *_filter = nullptr, BaseSensor *_sensor = nullptr)
         : BaseSensor(id, name), _channelADS(channelADS), _ads(ads) {}
 
     MockPHDFRobotSensor(
         unsigned char id, const char *name,
-        uint8_t pinAnalog)
+        uint8_t pinAnalog,
+        BaseFilter *_filter = nullptr, BaseSensor *_sensor = nullptr)
         : BaseSensor(id, name), _pinAnalog(pinAnalog) {}
 
     ~MockPHDFRobotSensor() override = default;
@@ -204,19 +129,19 @@ public:
         if (millis() - _prevSampling > 40U)
         {
             _prevSampling = millis();
-            _rawBuffer[_arrayIndex] = _ads != nullptr ? random(4095) : random(4095);
-            _arrayIndex++;
-            if (_arrayIndex == _windowSize)
-                _arrayIndex = 0;
+            float val = _ads != nullptr ? (float)random(4095) : (float)random(4095);
+
+            if (_filter != nullptr)
+                _filter->filter(val);
         }
     }
 
     float read() override
     {
-        uint16_t analogBufferTemp[_windowSize];
-        for (uint8_t copyIndex = 0; copyIndex < _windowSize; copyIndex++)
-            analogBufferTemp[copyIndex] = _rawBuffer[copyIndex];
-        float averageVoltage = _avergearray(analogBufferTemp, _windowSize) * (float)_vref / _adcResolution;
+        float val = _ads != nullptr ? (float)random(4095) : (float)random(4095);
+        if (_filter != nullptr)
+            _filter->filter(val);
+        float averageVoltage = val * (float)_vref / _adcResolution;
 
         float pHValue = 3.5 * averageVoltage + _offset;
         return pHValue;

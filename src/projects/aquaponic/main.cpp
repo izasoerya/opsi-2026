@@ -76,10 +76,6 @@ MockDS18B20Sensor waterTemperatureSensor(
     1, "Water Temperature",
     PIN_DS18);
 
-MockPHDFRobotSensor phSensor(
-    1, "PH DFRobot",
-    ADS_CHANNEL_PH, &ads);
-
 MockUltrasonicSensor waterLevelSensor(
     1, "Water Level",
     PIN_ECHO, PIN_TRIG);
@@ -87,6 +83,12 @@ MockUltrasonicSensor waterLevelSensor(
 MockBH1750Sensor lightIntensitySensor(
     1, "Light Intensity",
     &Wire, ADDRESS_BH1750);
+
+TrimmedMovingAverage filterPH(20, 5);
+MockPHDFRobotSensor phSensor(
+    1, "PH DFRobot",
+    ADS_CHANNEL_PH, &ads,
+    &filterPH, &waterTemperatureSensor);
 
 TrimmedMovingAverage filterTDS(20, 5);
 MockTDSDFRobotSensor tdsSensor(

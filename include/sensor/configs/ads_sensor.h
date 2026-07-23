@@ -2,7 +2,7 @@
 #define ADS_SENSOR_H
 
 #include "../base_sensor.h"
-#include "../ads1115_module/ads1115_module.h"
+#include "reader-module/ads1115_module.h"
 
 class ADSSensor : public BaseSensor
 {

@@ -46,12 +46,12 @@ void loop()
 
     clockSeconds += 2;
 
-    char buf[12];
-    dtostrf(roomTemp, 4, 1, buf);
-    display.updateContainerValue(1, (String(buf) + " C").c_str());
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%.1f C", roomTemp);
+    display.updateContainerValue(1, buf);
 
-    dtostrf(windSpeed, 4, 1, buf);
-    display.updateContainerValue(3, (String(buf) + " km/h").c_str());
+    snprintf(buf, sizeof(buf), "%.1f km/h", windSpeed);
+    display.updateContainerValue(3, buf);
 
     unsigned long h = (clockSeconds / 3600) % 24;
     unsigned long m = (clockSeconds / 60) % 60;

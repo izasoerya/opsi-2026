@@ -7,6 +7,14 @@
 #include "wifi_bundle.h"
 #include "../base_transmitter.h"
 
+/**
+ * @brief WiFi Module Class
+ *
+ * @param ssid const char* (WiFi SSID)
+ * @param password const char* (WiFi Password)
+ * @param hostname const char* (Hostname for the Device)
+ *
+ */
 class WiFiModule : public BaseTransmitter
 {
 private:

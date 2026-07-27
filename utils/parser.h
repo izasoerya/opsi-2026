@@ -23,7 +23,32 @@ public:
         }
     }
 
-    static String parseResetReasonESP(esp_reset_reason_t reason)
+    static const char *parseWindDirection(WindDirectionEnum direction)
+    {
+        switch (direction)
+        {
+        case WindDirectionEnum::NORTH:
+            return "North";
+        case WindDirectionEnum::NORTH_EAST:
+            return "North East";
+        case WindDirectionEnum::EAST:
+            return "East";
+        case WindDirectionEnum::SOUTHEAST:
+            return "Southeast";
+        case WindDirectionEnum::SOUTH:
+            return "South";
+        case WindDirectionEnum::SOUTHWEST:
+            return "Southwest";
+        case WindDirectionEnum::WEST:
+            return "West";
+        case WindDirectionEnum::NORTHWEST:
+            return "Northwest";
+        default:
+            return "Unknown";
+        }
+    }
+
+    static const char *parseResetReasonESP(esp_reset_reason_t reason)
     {
         switch (reason)
         {

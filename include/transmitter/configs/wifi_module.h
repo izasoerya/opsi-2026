@@ -1,5 +1,5 @@
-#if !defined(WIFI_MODULE)
-#define WIFI_MODULE
+#if !defined(WIFI_MODULE_H)
+#define WIFI_MODULE_H
 
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -36,10 +36,16 @@ public:
     bool begin()
     {
         if (_inet.begin(true)) // Restart on fail set to true
-        {
             return true;
-        }
         return false;
+    }
+
+    IPAddress *resolveMDNS(const char *hostname)
+    {
+        static IPAddress query = MDNS.queryHost(hostname);
+        if (query.toString() == "0.0.0.0")
+            return nullptr;
+        return &query;
     }
 
     void reconnect()
@@ -57,4 +63,4 @@ public:
     }
 };
 
-#endif // WIFI_MODULE
+#endif // WIFI_MODULE_H

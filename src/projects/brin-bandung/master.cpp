@@ -35,17 +35,25 @@ uint16_t sensorDatas[5];
 
 void setup()
 {
-    delay(2000); // Wait slave until its turned on
-
     Serial.begin(115200);
 
     if (wifi.begin())
         Serial.printf("Connected to: %s\n", wifi.localIP());
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    IPAddress *modbusSlaveIP = wifi.resolveMDNS(modbusSlaveUrl);
-    if (modbusSlaveIP == nullptr)
-        Serial.println("Failed to connect to slave modbus TCP");
+
+    static IPAddress *modbusSlaveIP = nullptr;
+    uint8_t counter = 0;
+    while (modbusSlaveIP == nullptr)
+    {
+        modbusSlaveIP = wifi.resolveMDNS(modbusSlaveUrl);
+        if (counter == 10)
+            ESP.restart(); // Too long, maybe the master is the one who stuck
+
+        counter++;
+        delay(1000);
+    }
     Serial.println(modbusSlaveIP->toString());
+
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
     modbusClient = new ModbusClientTCPasync(*modbusSlaveIP, modbusSlavePort);
     modbusClient->connect();

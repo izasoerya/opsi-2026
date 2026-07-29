@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <ModbusServerTCPasync.h>
+#include <ElegantOTA.h>
+#include <WebSerial.h>
 #include <Wire.h>
 #include <SHT2x.h>
 
@@ -11,6 +13,8 @@ const char *ssid = "NodeSensorWiFi1";
 const char *password = "muhammadnabiyullah";
 const char *hostname = "slave-bandung-persemaian-1";
 WiFiModule wifi(ssid, password, hostname);
+
+AsyncWebServer server(80);
 
 ModbusServerTCPasync modbusServer;
 const uint8_t MAX_REGISTER = 5;
@@ -34,12 +38,20 @@ void setup()
     Serial.begin(115200);
     // Serial1.begin(9600, SERIAL_8N1, pinWindDirectionTX, pinWindDirectionRX);
 
-    Wire.begin(pinSDA, pinSCL);
-    if (!sht.begin())
-        Serial.println("SHTX is not working");
-
     if (wifi.begin())
         Serial.println(wifi.localIP());
+
+    ElegantOTA.begin(&server);
+    ElegantOTA.setAutoReboot(true);
+    server.begin();
+    WebSerial.begin(&server);
+
+    Wire.begin(pinSDA, pinSCL);
+    if (!sht.begin())
+    {
+        Serial.println("SHTX is not working");
+        WebSerial.println("SHTX is not working");
+    }
 
     attachInterrupt(
         pinAnemo, []() -> void ARDUINO_ISR_ATTR
@@ -54,20 +66,16 @@ void setup()
 
 void loop()
 {
-}
-
-ModbusMessage FC03(ModbusMessage request)
-{
     // modbusData[0] = sht.getTemperature();
     // modbusData[1] = sht.getHumidity();
     // modbusData[2] = counterRainfall;
     // modbusData[3] = counterAnemo;
 
-    modbusData[0] = 0;
-    modbusData[1] = 10;
-    modbusData[2] = 20;
-    modbusData[3] = 30;
-    modbusData[4] = 40;
+    modbusData[0] = random(32768);
+    modbusData[1] = random(32768);
+    modbusData[2] = random(32768);
+    modbusData[3] = random(32768);
+    modbusData[4] = random(32768);
 
     // if (Serial1.available())
     // {
@@ -77,7 +85,10 @@ ModbusMessage FC03(ModbusMessage request)
     //     String resultWind = data.substring(a + 1, b);
     //     modbusData[4] = Parser::parseStringWindDirection(resultWind);
     // }
+}
 
+ModbusMessage FC03(ModbusMessage request)
+{
     /**
      * @brief Info about modbus TCP frame
      * | Slave id | Function code | Start Add | Length Add |
@@ -97,19 +108,14 @@ ModbusMessage FC03(ModbusMessage request)
     {
         for (uint8_t i = 0; i < words; i++)
             response.add((uint16_t)modbusData[addr + i]);
+
+        Serial.printf("Req Slave Id: %d, FC: %d, Data: [%d, %d, %d, %d, %d]",
+                      request.getServerID(), request.getFunctionCode(),
+                      modbusData[addr + 0], modbusData[addr + 1], modbusData[addr + 2], modbusData[addr + 3], modbusData[addr + 4]);
+
+        WebSerial.printf("Req Slave Id: %d, FC: %d, Data: [%d, %d, %d, %d, %d]",
+                         request.getServerID(), request.getFunctionCode(),
+                         modbusData[addr + 0], modbusData[addr + 1], modbusData[addr + 2], modbusData[addr + 3], modbusData[addr + 4]);
     }
     return response;
 }
-
-// #include <Arduino.h>
-
-// void setup()
-// {
-//     Serial.begin(115200);
-// }
-
-// void loop()
-// {
-//     Serial.println("Hello world!");
-//     delay(2000);
-// }

@@ -19,6 +19,10 @@ const char *password = "muhammadnabiyullah";
 const char *hostName = "master-bandung-persemaian-1";
 WiFiModule wifi(ssid, password, hostName);
 
+const char *supabaseUrl = "https://pykernnkhvnssplhzcvn.supabase.co";
+const char *supabasePublicKey = "sb_publishable_coDPUa845ZtfYmoBWlZlgw_eH5vsCY7";
+SupabaseTransport transport = SupabaseTransport(supabaseUrl, supabasePublicKey);
+
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 25200;
 const int daylightOffset_sec = 3600;
@@ -29,7 +33,9 @@ ModbusClientTCPasync *modbusClient = nullptr;
 void onDataHandler(ModbusMessage response, uint32_t token);
 void onErrorHandler(Error error, uint32_t token);
 
+const uint32_t deviceId = 2;
 uint32_t prevSamplingMillis = 0;
+uint32_t prevSystemLoggingMillis = 0;
 uint32_t counter = 0;
 uint16_t sensorDatas[5];
 
@@ -77,7 +83,23 @@ void setup()
 
 void loop()
 {
-    if (millis() - prevSamplingMillis > 10000)
+    if (millis() - prevSystemLoggingMillis > 60000 * 2) // Every 2 minute
+    {
+        SystemLogDto systemLog{
+            .deviceId = deviceId,
+            .freeHeap = ESP.getFreeHeap(),
+            .largestFreeBlock = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT),
+            .minFreeHeap = ESP.getMinFreeHeap(),
+            .lastResetReason = esp_reset_reason(),
+        };
+
+        wifi.setTransport(&transport);
+        char buffer[256];
+        systemLog.toJson(buffer, sizeof(buffer));
+        wifi.send("system_logs", buffer);
+    }
+
+    if (millis() - prevSamplingMillis > 10000) //  Every 10 second
     {
         Error err = modbusClient->addRequest(
             (uint32_t)counter, // Token
@@ -88,12 +110,17 @@ void loop()
             Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
         }
 
-        BandungPersemaianEntity sensor{
+        SensorDto sensor{
             .rainFall = float(sensorDatas[2] / 10.0F),
             .windSpeed = float(sensorDatas[3] / 10.0F),
-            .windDirection = Parser::parseWindDirection(static_cast<WindDirectionEnum>(sensorDatas[4])),
+            .windDirection = static_cast<WindDirectionEnum>(sensorDatas[4]),
             .airTemperature = float(sensorDatas[0] / 10.0F),
             .airHumidity = float(sensorDatas[1] / 10.0F)};
+
+        wifi.setTransport(&transport);
+        char buffer[256];
+        sensor.toJson(buffer, sizeof(buffer));
+        wifi.send("sensors", buffer);
 
         char buf[16];
         snprintf(buf, sizeof(buf), "%.1f C", sensor.airTemperature);

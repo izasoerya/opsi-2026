@@ -14,13 +14,9 @@ public:
     static AppState parseCommand(const char *incoming)
     {
         if (strcmp(incoming, "OTA") == 0)
-        {
             return AppState::OTA_MODE;
-        }
         else
-        {
             return AppState::NORMAL_MODE;
-        }
     }
 
     static const char *parseWindDirection(WindDirectionEnum direction)
@@ -46,6 +42,26 @@ public:
         default:
             return "Unknown";
         }
+    }
+
+    static WindDirectionEnum parseStringWindDirection(String direction)
+    {
+        if (direction.equals("1"))
+            return WindDirectionEnum::NORTH;
+        if (direction.equals("2"))
+            return WindDirectionEnum::NORTH_EAST;
+        if (direction.equals("3"))
+            return WindDirectionEnum::EAST;
+        if (direction.equals("4"))
+            return WindDirectionEnum::SOUTHEAST;
+        if (direction.equals("5"))
+            return WindDirectionEnum::SOUTH;
+        if (direction.equals("6"))
+            return WindDirectionEnum::SOUTHWEST;
+        if (direction.equals("7"))
+            return WindDirectionEnum::WEST;
+        if (direction.equals("8"))
+            return WindDirectionEnum::NORTHWEST;
     }
 
     static const char *parseResetReasonESP(esp_reset_reason_t reason)

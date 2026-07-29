@@ -1,6 +1,8 @@
 #include <TFT_eSPI.h>
 #include <ModbusClientTCPasync.h>
 #include <time.h>
+#include <ElegantOTA.h>
+#include <WebSerial.h>
 
 #include "models.h"
 #include "display/display_tft_spi_lcd/display_tft.h"
@@ -22,6 +24,8 @@ WiFiModule wifi(ssid, password, hostName);
 const char *supabaseUrl = "https://pykernnkhvnssplhzcvn.supabase.co";
 const char *supabasePublicKey = "sb_publishable_coDPUa845ZtfYmoBWlZlgw_eH5vsCY7";
 SupabaseTransport transport = SupabaseTransport(supabaseUrl, supabasePublicKey);
+
+AsyncWebServer server(80);
 
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 25200;
@@ -46,6 +50,11 @@ void setup()
     if (wifi.begin())
         Serial.printf("Connected to: %s\n", wifi.localIP());
 
+    ElegantOTA.begin(&server);
+    ElegantOTA.setAutoReboot(true);
+    server.begin();
+    WebSerial.begin(&server);
+
     static IPAddress *modbusSlaveIP = nullptr;
     uint8_t counter = 0;
     while (modbusSlaveIP == nullptr)
@@ -58,6 +67,7 @@ void setup()
         delay(1000);
     }
     Serial.println(modbusSlaveIP->toString());
+    WebSerial.printf("Slave IP: %s", modbusSlaveIP->toString());
 
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
@@ -92,6 +102,8 @@ void loop()
             .minFreeHeap = ESP.getMinFreeHeap(),
             .lastResetReason = esp_reset_reason(),
         };
+        Serial.println(systemLog.toString());
+        WebSerial.println(systemLog.toString());
 
         wifi.setTransport(&transport);
         char buffer[256];
@@ -108,6 +120,7 @@ void loop()
         {
             ModbusError e(err);
             Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
+            WebSerial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
         }
 
         SensorDto sensor{
@@ -116,6 +129,8 @@ void loop()
             .windDirection = static_cast<WindDirectionEnum>(sensorDatas[4]),
             .airTemperature = float(sensorDatas[0] / 10.0F),
             .airHumidity = float(sensorDatas[1] / 10.0F)};
+        Serial.println(sensor.toString());
+        WebSerial.println(sensor.toString());
 
         wifi.setTransport(&transport);
         char buffer[256];

@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <ElegantOTA.h>
 #include <WebSerial.h>
+#include <LiquidCrystal_I2C.h>
+#include "display/lcd_i2c_basic.h"
 
 #include "../utils/utils.h"
 #include "../utils/parser.h"
@@ -74,11 +76,13 @@ MockTDSDFRobotSensor tdsSensor(
     ADS_CHANNEL_TDS, &ads,
     &filterTDS, &phTemperatureSensor);
 
+LiquidCrystal_I2C lcd(0x27, 20, 4);
+
 AppState state = AppState::NORMAL_MODE;
 uint64_t prevBlynkSensor = 0;
 AsyncWebServer server(80);
 
-#define CALIBRATION
+// #define CALIBRATION
 
 void setup()
 {
@@ -87,6 +91,14 @@ void setup()
     //     Serial.println("WiFi is not connected, disabling OTA!");
 
     Wire.begin(PIN_SDA, PIN_SCL);
+
+    lcd.init(); // initialize the lcd
+    lcd.backlight();
+    lcd.createChar(0, (uint8_t *)temperature_icon);
+    lcd.createChar(1, (uint8_t *)ph_icon);
+    lcd.createChar(2, (uint8_t *)tds_icon);
+    lcd.createChar(3, (uint8_t *)turbidity_icon);
+
     ads.begin(ADS1X15_GAIN_4096MV);
     tdsSensor.begin();
     phSensor.begin();
@@ -131,6 +143,22 @@ void loop()
         // blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
         // blynk.send(BLYNK_TEMPERATURE_PIN, sensor.temperature);
 
+        lcd.setCursor(0, 1);
+        lcd.write(byte(0));
+        lcd.printf("%.2fC", sensor.temperature);
+
+        lcd.setCursor(10, 1);
+        lcd.write(byte(1));
+        lcd.printf("%.2fPH", abs(sensor.waterPH));
+
+        lcd.setCursor(0, 2);
+        lcd.write(byte(2));
+        lcd.printf("%.1fPPM", sensor.waterTDS);
+
+        lcd.setCursor(10, 2);
+        lcd.write(byte(3));
+        lcd.printf("%.1fNTU", sensor.waterTurbidity);
+
         prevBlynkSensor = millis();
     }
 }
@@ -148,3 +176,54 @@ void loop()
 }
 
 #endif
+
+// #include <Arduino.h>
+// #include <Wire.h>
+
+// void setup()
+// {
+//     Wire.begin(8, 9);
+//     Serial.begin(115200);
+//     Serial.println("\nI2C Scanner");
+// }
+
+// void loop()
+// {
+//     byte error, address;
+//     int nDevices;
+//     Serial.println("Scanning...");
+//     nDevices = 0;
+//     for (address = 1; address < 127; address++)
+//     {
+//         Wire.beginTransmission(address);
+//         error = Wire.endTransmission();
+//         if (error == 0)
+//         {
+//             Serial.print("I2C device found at address 0x");
+//             if (address < 16)
+//             {
+//                 Serial.print("0");
+//             }
+//             Serial.println(address, HEX);
+//             nDevices++;
+//         }
+//         else if (error == 4)
+//         {
+//             Serial.print("Unknow error at address 0x");
+//             if (address < 16)
+//             {
+//                 Serial.print("0");
+//             }
+//             Serial.println(address, HEX);
+//         }
+//     }
+//     if (nDevices == 0)
+//     {
+//         Serial.println("No I2C devices found\n");
+//     }
+//     else
+//     {
+//         Serial.println("done\n");
+//     }
+//     delay(5000);
+// }

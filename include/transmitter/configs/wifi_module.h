@@ -58,7 +58,7 @@ public:
         if (basicConfig != nullptr)
             _inet.setTransport(basicConfig);
         else if (supabaseConfig != nullptr)
-            _inet.setTransport(basicConfig);
+            _inet.setTransport(supabaseConfig);
         _inet.post(url, payload);
     }
 };

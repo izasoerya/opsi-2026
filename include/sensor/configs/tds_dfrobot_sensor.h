@@ -24,10 +24,10 @@ private:
     uint16_t _rawBuffer[_windowSize];
     uint8_t _arrayIndex = 0;
     uint64_t _prevSampling = 0;
-    float _kValue = 1.0;
+    float _kValue = 1.121;
 
-    const float _vref = 3.3;
-    const uint16_t _adcResolution = 4095;
+    const float _vref = 4.096;
+    const uint16_t _adcResolution = 32768;
     ADS1115Module *_ads = nullptr;
 
     BaseFilter *_filter = nullptr;

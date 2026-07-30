@@ -85,6 +85,10 @@ void loop()
     //     String resultWind = data.substring(a + 1, b);
     //     modbusData[4] = Parser::parseStringWindDirection(resultWind);
     // }
+
+    // TODO: IMPLEMENT RESET ISR COUNTER EVERY 12 PM
+    // TODO: PUT SYSTEM LOG DATA IN MODBUS [5-END]
+    // TODO: (OPTIONAL) STORE COUNTER AT EEPROM IN CASE OF WATCHDOG / RESET
 }
 
 ModbusMessage FC03(ModbusMessage request)

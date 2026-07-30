@@ -21,15 +21,18 @@
 #define BLYNK_TURBIDITY_PIN V2
 #define BLYNK_TEMPERATURE_PIN V3
 
-#define PIN_SDA 8 // TODO: CHANGE TO ACTUAL PIN
-#define PIN_SCL 9 // TODO: CHANGE TO ACTUAL PIN
+#define PIN_SDA 8
+#define PIN_SCL 9
 
-#define ADDRESS_ADS1115 0x48 // TODO: CHANGE TO ACTUAL ADDRESS
-#define ADDRESS_OLED 0x3C    // TODO: CHANGE TO ACTUAL ADDRESS
+#define ADDRESS_ADS1115 0x48
+#define ADDRESS_OLED 0x3C
 #define ADS_CHANNEL_TURBIDITY 0
 #define ADS_CHANNEL_PH_TEMPERATURE 1
 #define ADS_CHANNEL_PH 2
 #define ADS_CHANNEL_TDS 3
+
+const uint16_t adsResolution = 32768;
+const float adsRef = 4.096;
 
 const char *ssid = "NodeSensorWiFi1";
 const char *password = "muhammadnabiyullah";
@@ -49,7 +52,7 @@ MockADSSensor turbiditySensor(
     ADS_CHANNEL_TURBIDITY, &ads,
     [](float value) -> float
     {
-        float voltage = value * 3.3 / 4095.0;
+        float voltage = value * adsRef / adsResolution;
         return pow(voltage, 2) * 1120.4 + (5742.3 * voltage) - 4352.9; // Formula from DFRobot
     });
 
@@ -57,7 +60,7 @@ MockADSSensor phTemperatureSensor(
     1, "PH Temperature Sensor",
     ADS_CHANNEL_PH_TEMPERATURE, &ads,
     [](float value) -> float
-    { return value * 3.3 / 4095.0 * 100.0; }); // 10mV/°C linear sensor
+    { return value * adsRef / adsResolution * 100.0; }); // 10mV/°C linear sensor
 
 TrimmedMovingAverage filterPH(20, 5);
 MockPH4502CSensor phSensor(
@@ -75,40 +78,35 @@ AppState state = AppState::NORMAL_MODE;
 uint64_t prevBlynkSensor = 0;
 AsyncWebServer server(80);
 
+#define CALIBRATION
+
 void setup()
 {
     Serial.begin(115200);
-    if (!blynk.begin())
-        Serial.println("WiFi is not connected, disabling OTA!");
+    // if (!blynk.begin())
+    //     Serial.println("WiFi is not connected, disabling OTA!");
 
-    // ads.begin(ADS1X15_GAIN_4096MV);
-    // Wire.begin(PIN_SDA, PIN_SCL);
+    Wire.begin(PIN_SDA, PIN_SCL);
+    ads.begin(ADS1X15_GAIN_4096MV);
     tdsSensor.begin();
     phSensor.begin();
 
-    WebSerial.begin(&server);
-    WebSerial.onMessage(
-        [&](uint8_t *data, size_t len)
-        {
-            String d = "";
-            for (uint8_t i = 0; i < len; i++)
-                d += char(data[i]);
-            state = Parser::parseCommand(d.c_str());
-        });
+    // WebSerial.begin(&server);
+    // ElegantOTA.begin(&server);
+    // ElegantOTA.setAutoReboot(true);
 
-    ElegantOTA.begin(&server);
-    ElegantOTA.setAutoReboot(true);
-
-    server.begin();
+    // server.begin();
 }
+
+#ifndef CALIBRATION
 
 void loop()
 {
-    blynk.run();
-    blynk.reconnect();
-    ElegantOTA.loop();
+    // blynk.run();
+    // blynk.reconnect();
+    // ElegantOTA.loop();
 
-    if (millis() - prevBlynkSensor > 30000)
+    if (millis() - prevBlynkSensor > 2000)
     {
         PikohidroSensorEntity sensor{
             .waterTurbidity = turbiditySensor.read(),
@@ -117,7 +115,7 @@ void loop()
             .waterTDS = tdsSensor.read(),
         };
         const char *sensorString = sensor.toString();
-        WebSerial.println(sensorString);
+        // WebSerial.println(sensorString);
 
         PikohidroSystemEntity system{
             .freeHeap = ESP.getFreeHeap(),
@@ -126,13 +124,27 @@ void loop()
             .lastResetReason = esp_reset_reason(),
         };
         const char *systemString = system.toString();
-        WebSerial.println(systemString);
+        // WebSerial.println(systemString);
 
-        blynk.send(BLYNK_TURBIDITY_PIN, sensor.waterTurbidity);
-        blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
-        blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
-        blynk.send(BLYNK_TEMPERATURE_PIN, sensor.temperature);
+        // blynk.send(BLYNK_TURBIDITY_PIN, sensor.waterTurbidity);
+        // blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
+        // blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
+        // blynk.send(BLYNK_TEMPERATURE_PIN, sensor.temperature);
 
         prevBlynkSensor = millis();
     }
 }
+
+#endif
+
+#ifdef CALIBRATION
+
+void loop()
+{
+    Serial.printf("Turb: %.2f\n", turbiditySensor.read());
+    Serial.printf("TDS: %.2f\n", tdsSensor.read());
+    Serial.printf("PH: %.2f\n", phSensor.read());
+    delay(50);
+}
+
+#endif

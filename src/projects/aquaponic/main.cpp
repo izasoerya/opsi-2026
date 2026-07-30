@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <ElegantOTA.h>
 #include <WebSerial.h>
+#include <LiquidCrystal_I2C.h>
+#include "display/lcd_i2c_basic.h"
 
 #include "../utils/utils.h"
 #include "../utils/parser.h"
@@ -34,18 +36,18 @@
 #define BLYNK_LED_PIN V6
 #define BLYNK_AIR_PUMP_PIN V7
 
-#define PIN_ECHO 5        // TODO: CHANGE TO ACTUAL PIN
-#define PIN_TRIG 6        // TODO: CHANGE TO ACTUAL PIN
-#define PIN_DS18 7        // TODO: CHANGE TO ACTUAL PIN
-#define PIN_SDA 8         // TODO: CHANGE TO ACTUAL PIN
-#define PIN_SCL 9         // TODO: CHANGE TO ACTUAL PIN
-#define PIN_WATER_PUMP 15 // TODO: CHANGE TO ACTUAL PIN
-#define PIN_LED 16        // TODO: CHANGE TO ACTUAL PIN
-#define PIN_AIR_PUMP 17   // TODO: CHANGE TO ACTUAL PIN
+#define PIN_ECHO 8
+#define PIN_TRIG 7
+#define PIN_DS18 4
+#define PIN_SDA 5
+#define PIN_SCL 6
+#define PIN_WATER_PUMP 0
+#define PIN_LED 1
+#define PIN_AIR_PUMP 3
 
-#define ADDRESS_BH1750 0x23  // TODO: CHANGE TO ACTUAL ADDRESS
-#define ADDRESS_ADS1115 0x48 // TODO: CHANGE TO ACTUAL ADDRESS
-#define ADDRESS_OLED 0x3C    // TODO: CHANGE TO ACTUAL ADDRESS
+#define ADDRESS_BH1750 0x23
+#define ADDRESS_ADS1115 0x48
+#define ADDRESS_OLED 0x3C
 #define ADS_CHANNEL_PH 0
 #define ADS_CHANNEL_TDS 1
 
@@ -61,86 +63,114 @@ WiFiBlynk blynk(
     [](uint8_t virtualPin, bool state)
     {
         if (virtualPin == BLYNK_WATER_PUMP_PIN)
+        {
+            digitalWrite(PIN_WATER_PUMP, state);
             Serial.printf("Water Pump ON Pin %d, %d\n", PIN_WATER_PUMP, state);
+        }
         else if (virtualPin == BLYNK_LED_PIN)
+        {
+            digitalWrite(PIN_LED, state);
             Serial.printf("LED ON Pin %d, %d\n", PIN_LED, state);
+        }
         else if (virtualPin == BLYNK_AIR_PUMP_PIN)
+        {
+            digitalWrite(PIN_AIR_PUMP, state);
             Serial.printf("Air Pump ON Pin %d, %d\n", PIN_AIR_PUMP, state);
+        }
     });
-
-MockDisplayOLED display(&Wire, ADDRESS_OLED);
 
 ADS1115Module ads(ADS1115_ADDRESS, &Wire);
 
-MockDS18B20Sensor waterTemperatureSensor(
+DS18B20Sensor waterTemperatureSensor(
     1, "Water Temperature",
     PIN_DS18);
 
-MockUltrasonicSensor waterLevelSensor(
+UltrasonicSensor waterLevelSensor(
     1, "Water Level",
     PIN_ECHO, PIN_TRIG);
 
-MockBH1750Sensor lightIntensitySensor(
+BH1750Sensor lightIntensitySensor(
     1, "Light Intensity",
     &Wire, ADDRESS_BH1750);
 
 TrimmedMovingAverage filterPH(20, 5);
-MockPHDFRobotSensor phSensor(
+PHDFRobotSensor phSensor(
     1, "PH DFRobot",
     ADS_CHANNEL_PH, &ads,
     &filterPH, &waterTemperatureSensor);
 
 TrimmedMovingAverage filterTDS(20, 5);
-MockTDSDFRobotSensor tdsSensor(
+TDSDFRobotSensor tdsSensor(
     1, "TDS DFRobot",
     ADS_CHANNEL_TDS, &ads,
     &filterTDS, &waterTemperatureSensor);
 
+AsyncWebServer server(80);
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
 AppState state = AppState::NORMAL_MODE;
 uint64_t prevBlynkSensor = 0;
-AsyncWebServer server(80);
+uint64_t prevScreen = 0;
+
+// #define CALIBRATION
 
 void setup()
 {
     Serial.begin(115200);
-    if (!blynk.begin())
-        Serial.println("WiFi is not connected, disabling OTA!");
+    // if (!blynk.begin())
+    //     Serial.println("WiFi is not connected, disabling OTA!");
 
-    display.begin();
+    // display.begin();
 
-    // ads.begin(ADS1X15_GAIN_4096MV);
-    // Wire.begin(PIN_SDA, PIN_SCL);
+    pinMode(PIN_WATER_PUMP, OUTPUT);
+    pinMode(PIN_LED, OUTPUT);
+    pinMode(PIN_AIR_PUMP, OUTPUT);
+    Wire.begin(PIN_SDA, PIN_SCL);
+
+    lcd.init(); // initialize the lcd
+    lcd.backlight();
+    lcd.createChar(0, (uint8_t *)temperature_icon);
+    lcd.createChar(1, (uint8_t *)humidity_icon);
+    lcd.createChar(2, (uint8_t *)turbidity_icon);
+    lcd.createChar(3, (uint8_t *)ph_icon);
+    lcd.createChar(4, (uint8_t *)light_icon);
+    lcd.createChar(5, (uint8_t *)level_icon);
+
+    ads.begin(ADS1X15_GAIN_4096MV);
     tdsSensor.begin();
     phSensor.begin();
     waterTemperatureSensor.begin();
     waterLevelSensor.begin();
     lightIntensitySensor.begin();
 
-    WebSerial.begin(&server);
-    WebSerial.onMessage(
-        [&](uint8_t *data, size_t len)
-        {
-            String d = "";
-            for (uint8_t i = 0; i < len; i++)
-                d += char(data[i]);
-            state = Parser::parseCommand(d.c_str());
-        });
+    // WebSerial.begin(&server);
+    // WebSerial.onMessage(
+    //     [&](uint8_t *data, size_t len)
+    //     {
+    //         String d = "";
+    //         for (uint8_t i = 0; i < len; i++)
+    //             d += char(data[i]);
+    //         state = Parser::parseCommand(d.c_str());
+    //     });
 
-    ElegantOTA.begin(&server);
-    ElegantOTA.setAutoReboot(true);
+    // ElegantOTA.begin(&server);
+    // ElegantOTA.setAutoReboot(true);
 
-    server.begin();
+    // server.begin();
 }
+
+#ifndef CALIBRATION
 
 void loop()
 {
-    blynk.run();
-    blynk.reconnect();
-    ElegantOTA.loop();
+    // blynk.run();
+    // blynk.reconnect();
+    // ElegantOTA.loop();
     tdsSensor.update();
     phSensor.update();
 
-    if (millis() - prevBlynkSensor > 30000)
+    if (millis() - prevBlynkSensor > 2000)
     {
         AquaponicSensorEntity sensor{
             .lightIntensity = uint16_t(lightIntensitySensor.read()),
@@ -150,7 +180,8 @@ void loop()
             .waterTDS = tdsSensor.read(),
         };
         const char *sensorString = sensor.toString();
-        WebSerial.println(sensorString);
+        Serial.println(sensorString);
+        // WebSerial.println(sensorString);
 
         AquaponicSystemEntity system{
             .freeHeap = ESP.getFreeHeap(),
@@ -159,19 +190,45 @@ void loop()
             .lastResetReason = esp_reset_reason(),
         };
         const char *systemString = system.toString();
-        WebSerial.println(systemString);
+        Serial.println(systemString);
+        // WebSerial.println(sensorString);
 
-        blynk.send(BLYNK_AMBIENT_LIGHT_PIN, sensor.lightIntensity);
-        blynk.send(BLYNK_WATER_LEVEL_PIN, sensor.waterLevel);
-        blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
-        blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
-        blynk.send(BLYNK_WATER_TEMPERATURE_PIN, sensor.waterTemperature);
+        // blynk.send(BLYNK_AMBIENT_LIGHT_PIN, sensor.lightIntensity);
+        // blynk.send(BLYNK_WATER_LEVEL_PIN, sensor.waterLevel);
+        // blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
+        // blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
+        // blynk.send(BLYNK_WATER_TEMPERATURE_PIN, sensor.waterTemperature);
 
-        char buffer[64];
-        snprintf(buffer, sizeof(buffer),
-                 "Water Level: %.1f", waterLevelSensor.read());
-        display.showMessage(buffer);
+        lcd.setCursor(0, 0);
+        lcd.write(byte(0));
+        lcd.printf("%.1fC", sensor.waterTemperature);
+
+        // lcd.setCursor(7, 0);
+        // lcd.write(byte(10));
+        // lcd.printf("%dm", 3);
+
+        lcd.setCursor(7, 0);
+        lcd.write(byte(3));
+        lcd.printf("%.1fPH", abs(sensor.waterPH));
+
+        lcd.setCursor(0, 1);
+        lcd.write(byte(4));
+        lcd.printf("%dLX", sensor.lightIntensity);
+
+        lcd.setCursor(6, 1);
+        lcd.write(byte(2));
+        lcd.printf("%.1fppm", sensor.waterTDS);
 
         prevBlynkSensor = millis();
     }
 }
+
+#endif
+
+#ifdef CALIBRATION
+void loop()
+{
+    Serial.printf("PH: %.2f\n", phSensor.read());
+    delay(50);
+}
+#endif

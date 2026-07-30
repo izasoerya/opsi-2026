@@ -24,23 +24,23 @@ public:
         switch (direction)
         {
         case WindDirectionEnum::NORTH:
-            return "North";
+            return "N";
         case WindDirectionEnum::NORTH_EAST:
-            return "North East";
+            return "NE";
         case WindDirectionEnum::EAST:
-            return "East";
+            return "E";
         case WindDirectionEnum::SOUTHEAST:
-            return "Southeast";
+            return "SE";
         case WindDirectionEnum::SOUTH:
-            return "South";
+            return "S";
         case WindDirectionEnum::SOUTHWEST:
-            return "Southwest";
+            return "SW";
         case WindDirectionEnum::WEST:
-            return "West";
+            return "W";
         case WindDirectionEnum::NORTHWEST:
-            return "Northwest";
+            return "NW";
         default:
-            return "Unknown";
+            return "UNK";
         }
     }
 

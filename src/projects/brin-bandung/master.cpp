@@ -52,8 +52,8 @@ void setup()
 
     ElegantOTA.begin(&server);
     ElegantOTA.setAutoReboot(true);
-    server.begin();
     WebSerial.begin(&server);
+    server.begin();
 
     static IPAddress *modbusSlaveIP = nullptr;
     uint8_t counter = 0;
@@ -105,10 +105,12 @@ void loop()
         Serial.println(systemLog.toString());
         WebSerial.println(systemLog.toString());
 
-        wifi.setTransport(&transport);
-        char buffer[256];
-        systemLog.toJson(buffer, sizeof(buffer));
-        wifi.send("system_logs", buffer);
+        // wifi.setTransport(&transport);
+        // char buffer[256];
+        // systemLog.toJson(buffer, sizeof(buffer));
+        // wifi.send("system_logs", buffer);
+
+        prevSystemLoggingMillis = millis();
     }
 
     if (millis() - prevSamplingMillis > 10000) //  Every 10 second
@@ -124,6 +126,7 @@ void loop()
         }
 
         SensorDto sensor{
+            .deviceId = deviceId,
             .rainFall = float(sensorDatas[2] / 10.0F),
             .windSpeed = float(sensorDatas[3] / 10.0F),
             .windDirection = static_cast<WindDirectionEnum>(sensorDatas[4]),
@@ -132,10 +135,10 @@ void loop()
         Serial.println(sensor.toString());
         WebSerial.println(sensor.toString());
 
-        wifi.setTransport(&transport);
-        char buffer[256];
-        sensor.toJson(buffer, sizeof(buffer));
-        wifi.send("sensors", buffer);
+        // wifi.setTransport(&transport);
+        // char buffer[256];
+        // sensor.toJson(buffer, sizeof(buffer));
+        // wifi.send("sensors", buffer);
 
         char buf[16];
         snprintf(buf, sizeof(buf), "%.1f C", sensor.airTemperature);
@@ -147,7 +150,7 @@ void loop()
         snprintf(buf, sizeof(buf), "%.1f km/h", sensor.windSpeed);
         display.updateContainerValue(3, buf);
 
-        snprintf(buf, sizeof(buf), "%s", sensor.windDirection);
+        snprintf(buf, sizeof(buf), "%s", Parser::parseWindDirection(sensor.windDirection));
         display.updateContainerValue(4, buf);
 
         snprintf(buf, sizeof(buf), "%.1f mm", sensor.rainFall);

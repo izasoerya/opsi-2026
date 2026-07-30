@@ -19,8 +19,8 @@ struct SensorDto
     {
         static char buffer[128];
         snprintf(buffer, sizeof(buffer),
-                 "rain_fall: %.1f\nwind_direction: %s\nwind_speed: %.2f\nair_temperature: %.1f\nair_humidity: %.1f\ntimestamp: %s",
-                 rainFall, Parser::parseWindDirection(windDirection), windSpeed, airTemperature, airHumidity, timestamp);
+                 "rain_fall: %.1f\nwind_direction: %s\nwind_speed: %.2f\nair_temperature: %.1f\nair_humidity: %.1f",
+                 rainFall, Parser::parseWindDirection(windDirection), windSpeed, airTemperature, airHumidity);
         return buffer;
     }
 
@@ -34,7 +34,7 @@ struct SensorDto
         doc["temperature"] = airTemperature;
         doc["humidity"] = airHumidity;
 
-        return serializeJsonPretty(doc, out, outSize);
+        return serializeJson(doc, out, outSize);
     }
 };
 
@@ -64,7 +64,7 @@ struct SystemLogDto
         doc["min_free_heap"] = minFreeHeap;
         doc["reset_reason"] = Parser::parseResetReasonESP(lastResetReason);
 
-        return serializeJsonPretty(doc, out, outSize);
+        return serializeJson(doc, out, outSize);
     }
 };
 

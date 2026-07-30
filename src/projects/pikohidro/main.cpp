@@ -23,8 +23,8 @@
 #define BLYNK_TURBIDITY_PIN V2
 #define BLYNK_TEMPERATURE_PIN V3
 
-#define PIN_SDA 8
-#define PIN_SCL 9
+#define PIN_SDA 5
+#define PIN_SCL 6
 
 #define ADDRESS_ADS1115 0x48
 #define ADDRESS_OLED 0x3C
@@ -143,21 +143,25 @@ void loop()
         // blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
         // blynk.send(BLYNK_TEMPERATURE_PIN, sensor.temperature);
 
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("===== PIKOHIDRO =====");
+
         lcd.setCursor(0, 1);
         lcd.write(byte(0));
         lcd.printf("%.2fC", sensor.temperature);
 
-        lcd.setCursor(10, 1);
-        lcd.write(byte(1));
-        lcd.printf("%.2fPH", abs(sensor.waterPH));
-
-        lcd.setCursor(0, 2);
+        lcd.setCursor(9, 1);
         lcd.write(byte(2));
         lcd.printf("%.1fPPM", sensor.waterTDS);
 
-        lcd.setCursor(10, 2);
+        lcd.setCursor(0, 2);
+        lcd.write(byte(1));
+        lcd.printf("%.2fPH", abs(sensor.waterPH));
+
+        lcd.setCursor(9, 2);
         lcd.write(byte(3));
-        lcd.printf("%.1fNTU", sensor.waterTurbidity);
+        lcd.printf("%.1fNTU", abs(sensor.waterTurbidity));
 
         prevBlynkSensor = millis();
     }

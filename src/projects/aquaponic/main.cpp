@@ -21,7 +21,8 @@
 #include "transmitter/configs/wifi_module.h"
 
 #include "display/display_oled.h"
-
+#include "config.h"   //
+#include <WireGuard-ESP32.h>
 #define BLYNK_PRINT Serial
 #define BLYNK_TEMPLATE_ID "TMPL6MXdBYHV3"
 #define BLYNK_TEMPLATE_NAME "Aquaponic"
@@ -107,6 +108,11 @@ TDSDFRobotSensor tdsSensor(
 
 AsyncWebServer server(80);
 
+// === [WG+OTA] ===
+WireGuard wg;
+IPAddress wg_local_ip(WG_LOCAL_IP);
+// ================
+
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 AppState state = AppState::NORMAL_MODE;
@@ -158,12 +164,47 @@ void setup()
     // ElegantOTA.setAutoReboot(true);
 
     // server.begin();
+
+
+    
+    // === [WG+OTA] WiFi + WireGuard + ElegantOTA (baru, gak ganggu logic Blynk di atas) ===
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    Serial.print("Menghubungkan ke WiFi");
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println();
+    Serial.print("WiFi tersambung, IP: ");
+    Serial.println(WiFi.localIP());
+ 
+    // WireGuard butuh waktu yang akurat untuk handshake
+    configTime(7 * 3600, 0, "pool.ntp.org", "time.google.com");
+    time_t now = time(nullptr);
+    while (now < 100000)
+    {
+        delay(500);
+        now = time(nullptr);
+    }
+ 
+    bool wgOk = wg.begin(wg_local_ip, WG_PRIVATE_KEY, WG_ENDPOINT_ADDRESS,
+                          WG_ENDPOINT_PUBLIC_KEY, WG_ENDPOINT_PORT);
+    Serial.println(wgOk ? "WireGuard tersambung" : "Gagal konek WireGuard!");
+ 
+    ElegantOTA.begin(&server, OTA_USERNAME, OTA_PASSWORD);
+    server.begin();
+    // =====================================================================
 }
 
 #ifndef CALIBRATION
 
 void loop()
 {
+    // === [WG+OTA] ===
+    ElegantOTA.loop();
+    // ================
     // blynk.run();
     // blynk.reconnect();
     // ElegantOTA.loop();

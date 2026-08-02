@@ -24,7 +24,8 @@
 #define BLYNK_WATER_PH_PIN V1
 #define BLYNK_TDS_PIN V0
 #define BLYNK_TURBIDITY_PIN V2
-#define BLYNK_TEMPERATURE_PIN V3
+#define BLYNK_POWER_IN_PIN V3
+#define BLYNK_POWER_OUT_PIN V4
 
 #define PIN_SDA 8
 #define PIN_SCL 9
@@ -130,6 +131,8 @@ void loop()
             .waterTurbidity = turbiditySensor.read(),
             .waterPH = phSensor.read(),
             .waterTDS = tdsSensor.read(),
+            .powerIn = inaInput.getPower(),
+            .powerOut = inaOutput.getPower(),
         };
         const char *sensorString = sensor.toString();
         WebSerial.println(sensorString);
@@ -146,6 +149,8 @@ void loop()
         blynk.send(BLYNK_TURBIDITY_PIN, sensor.waterTurbidity);
         blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
         blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
+        blynk.send(BLYNK_POWER_IN_PIN, sensor.waterTDS);
+        blynk.send(BLYNK_POWER_OUT_PIN, sensor.waterTDS);
 
         lcd.clear();
         lcd.setCursor(0, 0);
@@ -153,7 +158,7 @@ void loop()
 
         lcd.setCursor(0, 1);
         lcd.write(byte(2));
-        lcd.printf("%.1fPPM", sensor.waterTDS);
+        lcd.printf("%.1fPPM", abs(sensor.waterTDS));
 
         lcd.setCursor(10, 1);
         lcd.write(byte(1));
@@ -169,11 +174,11 @@ void loop()
 
         lcd.setCursor(0, 3);
         lcd.write(byte(5));
-        lcd.printf("I:%dW", inaInput.getPower());
+        lcd.printf("I:%dW", abs(sensor.powerIn));
 
         lcd.setCursor(10, 3);
         lcd.write(byte(5));
-        lcd.printf("O:%dW", inaOutput.getPower());
+        lcd.printf("O:%dW", abs(sensor.powerOut));
 
         prevBlynkSensor = millis();
     }

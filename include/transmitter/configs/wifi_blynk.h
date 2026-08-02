@@ -47,6 +47,11 @@ public:
         return true;
     }
 
+    int8_t getSignalStrength()
+    {
+        return _wifi.getdBm();
+    }
+
     void send(uint8_t virtualPin, float value)
     {
         Blynk.virtualWrite(virtualPin, value);

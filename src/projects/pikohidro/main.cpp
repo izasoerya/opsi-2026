@@ -105,9 +105,9 @@ void setup()
     phSensor.begin();
 
     inaInput.begin();
-    inaInput.setMaxCurrentShunt(3.4, 0.002);
+    inaInput.setMaxCurrentShunt(5, 0.001);
     inaOutput.begin();
-    inaOutput.setMaxCurrentShunt(3.4, 0.002);
+    inaOutput.setMaxCurrentShunt(5, 0.001);
 
     WebSerial.begin(&server);
     ElegantOTA.begin(&server);

@@ -1,9 +1,10 @@
 #include "wifi_bundle.h"
 
-WiFiBundle::WiFiBundle(const char *ssid, const char *password, const char *hostname)
-    : _ssid(ssid),
-      _password(password),
-      _hostname(hostname) {}
+WiFiBundle::WiFiBundle(
+        const char *ssid, const char *password, const char *hostname,
+        wifi_power_t *txPower)
+    : _ssid(ssid), _password(password), _hostname(hostname),
+      _txPowerConfig(txPower) {}
 
 WiFiBundle::~WiFiBundle()
 {
@@ -15,6 +16,9 @@ bool WiFiBundle::begin(bool restartOnFail)
     WiFi.mode(WIFI_STA);
     WiFi.hostname(_hostname);
     WiFi.begin(_ssid, _password);
+
+    if (_txPowerConfig != nullptr)
+        WiFi.setTxPower(*_txPowerConfig);
 
     uint8_t counter = 0;
     while (WiFi.status() != WL_CONNECTED)

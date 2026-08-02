@@ -55,9 +55,8 @@ const char *hostName = "aquaponic-1";
 const char *blynkAuthToken = "d2oR-C4x_VlT26WNVydzEKntp-865JkX";
 WiFiBlynk blynk(
     blynkAuthToken,
-    ssid,
-    password,
-    hostName,
+    ssid, password, hostName,
+    wifi_power_t::WIFI_POWER_8_5dBm, // since im using ESP32 C3 Super Mini Black
     [](uint8_t virtualPin, bool state)
     {
         if (virtualPin == BLYNK_WATER_PUMP_PIN)
@@ -118,7 +117,6 @@ uint64_t prevScreen = 0;
 void setup()
 {
     Serial.begin(115200);
-    WiFi.setTxPower(WIFI_POWER_8_5dBm); // Use this if using esp32-c3-supermini-black
     if (!blynk.begin())
         Serial.println("WiFi is not connected, disabling OTA!");
 

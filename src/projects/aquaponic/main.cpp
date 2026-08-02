@@ -20,8 +20,6 @@
 #include "transmitter/configs/lora.h"
 #include "transmitter/configs/wifi_module.h"
 
-#include "display/display_oled.h"
-
 #define BLYNK_PRINT Serial
 #define BLYNK_TEMPLATE_ID "TMPL6MXdBYHV3"
 #define BLYNK_TEMPLATE_NAME "Aquaponic"
@@ -118,10 +116,8 @@ uint64_t prevScreen = 0;
 void setup()
 {
     Serial.begin(115200);
-    // if (!blynk.begin())
-    //     Serial.println("WiFi is not connected, disabling OTA!");
-
-    // display.begin();
+    if (!blynk.begin())
+        Serial.println("WiFi is not connected, disabling OTA!");
 
     pinMode(PIN_WATER_PUMP, OUTPUT);
     pinMode(PIN_LED, OUTPUT);
@@ -144,29 +140,29 @@ void setup()
     waterLevelSensor.begin();
     lightIntensitySensor.begin();
 
-    // WebSerial.begin(&server);
-    // WebSerial.onMessage(
-    //     [&](uint8_t *data, size_t len)
-    //     {
-    //         String d = "";
-    //         for (uint8_t i = 0; i < len; i++)
-    //             d += char(data[i]);
-    //         state = Parser::parseCommand(d.c_str());
-    //     });
+    WebSerial.begin(&server);
+    WebSerial.onMessage(
+        [&](uint8_t *data, size_t len)
+        {
+            String d = "";
+            for (uint8_t i = 0; i < len; i++)
+                d += char(data[i]);
+            state = Parser::parseCommand(d.c_str());
+        });
 
-    // ElegantOTA.begin(&server);
-    // ElegantOTA.setAutoReboot(true);
+    ElegantOTA.begin(&server);
+    ElegantOTA.setAutoReboot(true);
 
-    // server.begin();
+    server.begin();
 }
 
 #ifndef CALIBRATION
 
 void loop()
 {
-    // blynk.run();
-    // blynk.reconnect();
-    // ElegantOTA.loop();
+    blynk.run();
+    blynk.reconnect();
+    ElegantOTA.loop();
     tdsSensor.update();
     phSensor.update();
 
@@ -181,7 +177,7 @@ void loop()
         };
         const char *sensorString = sensor.toString();
         Serial.println(sensorString);
-        // WebSerial.println(sensorString);
+        WebSerial.println(sensorString);
 
         AquaponicSystemEntity system{
             .freeHeap = ESP.getFreeHeap(),
@@ -191,21 +187,17 @@ void loop()
         };
         const char *systemString = system.toString();
         Serial.println(systemString);
-        // WebSerial.println(sensorString);
+        WebSerial.println(sensorString);
 
-        // blynk.send(BLYNK_AMBIENT_LIGHT_PIN, sensor.lightIntensity);
-        // blynk.send(BLYNK_WATER_LEVEL_PIN, sensor.waterLevel);
-        // blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
-        // blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
-        // blynk.send(BLYNK_WATER_TEMPERATURE_PIN, sensor.waterTemperature);
+        blynk.send(BLYNK_AMBIENT_LIGHT_PIN, sensor.lightIntensity);
+        blynk.send(BLYNK_WATER_LEVEL_PIN, sensor.waterLevel);
+        blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
+        blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
+        blynk.send(BLYNK_WATER_TEMPERATURE_PIN, sensor.waterTemperature);
 
         lcd.setCursor(0, 0);
         lcd.write(byte(0));
         lcd.printf("%.1fC", sensor.waterTemperature);
-
-        // lcd.setCursor(7, 0);
-        // lcd.write(byte(10));
-        // lcd.printf("%dm", 3);
 
         lcd.setCursor(7, 0);
         lcd.write(byte(3));

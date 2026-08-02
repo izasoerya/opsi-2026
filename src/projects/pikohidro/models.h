@@ -8,15 +8,14 @@ struct PikohidroSensorEntity
 {
     float waterTurbidity;
     float waterPH;
-    float temperature;
     float waterTDS;
 
     const char *toString()
     {
         static char buffer[128];
         snprintf(buffer, sizeof(buffer),
-                 "Level: %.1f\nPH: %.2f\nTemperature: %.1f\nTDS: %.1f",
-                 waterTurbidity, waterPH, temperature, waterTDS);
+                 "Level: %.1f\nPH: %.2f\nTDS: %.1f",
+                 waterTurbidity, waterPH, waterTDS);
         return buffer;
     }
 };

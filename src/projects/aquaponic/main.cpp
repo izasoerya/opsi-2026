@@ -108,7 +108,9 @@ AsyncWebServer server(80);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 AppState state = AppState::NORMAL_MODE;
-uint64_t prevBlynkSensor = 0;
+uint64_t prevBlynkSend = 0;
+uint64_t prevSampling = 0;
+uint8_t adsSensorCounter = 0;
 uint64_t prevScreen = 0;
 
 // #define CALIBRATION
@@ -142,15 +144,6 @@ void setup()
     lightIntensitySensor.begin();
 
     WebSerial.begin(&server);
-    WebSerial.onMessage(
-        [&](uint8_t *data, size_t len)
-        {
-            String d = "";
-            for (uint8_t i = 0; i < len; i++)
-                d += char(data[i]);
-            state = Parser::parseCommand(d.c_str());
-        });
-
     ElegantOTA.begin(&server);
     ElegantOTA.setAutoReboot(true);
 
@@ -167,15 +160,32 @@ void loop()
     tdsSensor.update();
     phSensor.update();
 
-    if (millis() - prevBlynkSensor > 2000)
+    static AquaponicSensorEntity sensor;
+    if (millis() - prevSampling > 50)
     {
-        AquaponicSensorEntity sensor{
-            .lightIntensity = uint16_t(lightIntensitySensor.read()),
-            .waterLevel = waterLevelSensor.read(),
-            .waterPH = phSensor.read(),
-            .waterTemperature = waterTemperatureSensor.read(),
-            .waterTDS = tdsSensor.read(),
-        };
+        /**
+         * @brief Reading in turn since ADS is multiplexer
+         * if you read at once, i2c error like -1 or 263 will show up (from experiece)
+         */
+        if (adsSensorCounter == 0)
+        {
+            sensor.waterTDS = tdsSensor.read(),
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 1)
+        {
+            sensor.waterPH = phSensor.read(),
+            adsSensorCounter = 0;
+        }
+        sensor.lightIntensity = uint16_t(lightIntensitySensor.read()); // These are not using ads so its fine to poll
+        sensor.waterTemperature = waterTemperatureSensor.read();       // These are not using ads so its fine to poll
+        sensor.waterLevel = waterLevelSensor.read(),
+
+        prevSampling = millis();
+    }
+
+    if (millis() - prevBlynkSend > 10000)
+    {
         const char *sensorString = sensor.toString();
         Serial.println(sensorString);
         WebSerial.println(sensorString);
@@ -212,7 +222,7 @@ void loop()
         lcd.write(byte(2));
         lcd.printf("%.1fppm", sensor.waterTDS);
 
-        prevBlynkSensor = millis();
+        prevBlynkSend = millis();
     }
 }
 

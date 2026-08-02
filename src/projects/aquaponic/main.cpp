@@ -116,6 +116,7 @@ uint64_t prevScreen = 0;
 void setup()
 {
     Serial.begin(115200);
+    WiFi.setTxPower(WIFI_POWER_8_5dBm); // Use this if using esp32-c3-supermini-black
     if (!blynk.begin())
         Serial.println("WiFi is not connected, disabling OTA!");
 

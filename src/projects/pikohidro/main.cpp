@@ -79,7 +79,9 @@ INA219 inaOutput(0x41);
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 AppState state = AppState::NORMAL_MODE;
-uint64_t prevBlynkSensor = 0;
+uint64_t prevSendBlynk = 0;
+uint64_t prevSampling = 0;
+uint8_t adsSensorCounter = 0;
 AsyncWebServer server(80);
 
 // #define CALIBRATION
@@ -87,6 +89,7 @@ AsyncWebServer server(80);
 void setup()
 {
     Serial.begin(115200);
+    WiFi.setTxPower(WIFI_POWER_8_5dBm); // Use this if using esp32-c3-supermini-black
     if (!blynk.begin())
         Serial.println("WiFi is not connected, disabling OTA!");
 
@@ -125,16 +128,38 @@ void loop()
     blynk.reconnect();
     ElegantOTA.loop();
 
-    if (millis() - prevBlynkSensor > 2000)
+    static PikohidroSensorEntity sensor;
+    if (millis() - prevSampling > 50)
     {
-        PikohidroSensorEntity sensor{
-            .waterTurbidity = turbiditySensor.read(),
-            .waterPH = phSensor.read(),
-            .waterTDS = tdsSensor.read(),
-            .powerIn = inaInput.getPower(),
-            .powerOut = inaOutput.getPower(),
-        };
+        /**
+         * @brief Reading in turn since ADS is multiplexer
+         * if you read at once, i2c error like -1 or 263 will show up (from experiece)
+         */
+        if (adsSensorCounter == 0)
+        {
+            sensor.waterTurbidity = turbiditySensor.read();
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 1)
+        {
+            sensor.waterPH = phSensor.read();
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 2)
+        {
+            sensor.waterTDS = tdsSensor.read();
+            adsSensorCounter = 0;
+        }
+        sensor.powerIn = inaInput.getPower();   // These are not using ads so its fine to poll
+        sensor.powerOut = inaOutput.getPower(); // These are not using ads so its fine to poll
+
+        prevSampling = millis();
+    }
+
+    if (millis() - prevSendBlynk > 10000)
+    {
         const char *sensorString = sensor.toString();
+        Serial.println(sensorString);
         WebSerial.println(sensorString);
 
         PikohidroSystemEntity system{
@@ -144,6 +169,7 @@ void loop()
             .lastResetReason = esp_reset_reason(),
         };
         const char *systemString = system.toString();
+        Serial.println(systemString);
         WebSerial.println(systemString);
 
         blynk.send(BLYNK_TURBIDITY_PIN, sensor.waterTurbidity);
@@ -180,7 +206,7 @@ void loop()
         lcd.write(byte(5));
         lcd.printf("O:%dW", abs(sensor.powerOut));
 
-        prevBlynkSensor = millis();
+        prevSendBlynk = millis();
     }
 }
 

@@ -16,6 +16,7 @@ public:
 
     bool begin(bool restartOnFail = true);
     const char *localIP();
+    int8_t getdBm();
     void reconnect();
 
     void setTransport(DataTransport *transport)

@@ -43,6 +43,11 @@ const char *WiFiBundle::localIP()
     return _localIP;
 }
 
+int8_t WiFiBundle::getdBm()
+{
+    return WiFi.RSSI();
+}
+
 void WiFiBundle::reconnect()
 {
     const uint32_t currentTime = millis();

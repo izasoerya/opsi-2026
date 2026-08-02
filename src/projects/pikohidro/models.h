@@ -16,7 +16,7 @@ struct PikohidroSensorEntity
     {
         static char buffer[128];
         snprintf(buffer, sizeof(buffer),
-                 "LVL: %.1f | PH: %.2f | TDS: %.1f | P_IN: %.1f | P_OUT: %.1f\n",
+                 "TURB: %.1f | PH: %.2f | TDS: %.1f | P_IN: %.1f | P_OUT: %.1f\n",
                  waterTurbidity, waterPH, waterTDS, powerIn, powerOut);
         return buffer;
     }

@@ -58,16 +58,9 @@ public:
             pinMode(_pinAnalog, INPUT);
     }
 
-    void update()
+    int16_t readRawVoltage()
     {
-        if (millis() - _prevSampling > 40U)
-        {
-            _prevSampling = millis();
-            float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
-
-            if (_filter != nullptr)
-                _filter->filter(val);
-        }
+        return _ads->read(_channelADS);
     }
 
     float readVoltage()
@@ -75,8 +68,7 @@ public:
         float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
         if (_filter != nullptr)
             _filter->filter(val);
-        float averageVoltage = val * (float)_vref / _adcResolution;
-        return averageVoltage;
+        return val / 1000.0F;
     }
 
     float read() override
@@ -84,7 +76,7 @@ public:
         float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
         if (_filter != nullptr)
             _filter->filter(val);
-        float averageVoltage = val * (float)_vref / _adcResolution;
+        float averageVoltage = val / 1000.0F;
 
         float currentTemperature = _temperatureSensor != nullptr ? _temperatureSensor->read() : 25.0;
         float compensationCoefficient = 1.0 + 0.02 * (currentTemperature - 25.0);

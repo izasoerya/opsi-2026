@@ -71,11 +71,11 @@ public:
         float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
         if (_filter != nullptr)
             _filter->filter(val);
-        float voltage = val * (float)_vref / _adcResolution; // voltage in V
+        float voltage = val / 1000.0F; // voltage in V
         return voltage;
     }
 
-    int16_t readSingleVoltage()
+    int16_t readRawVoltage()
     {
         return _ads->read(_channelADS);
     }
@@ -85,10 +85,31 @@ public:
         float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
         if (_filter != nullptr)
             _filter->filter(val);
-        float voltage = val * (float)_vref / _adcResolution; // voltage in V
+        float voltage = val / 1000.0F; // voltage in V
 
         const float V_686 = 2.525f; // voltage when tuned in pH 6.86 buffer
         const float V_401 = 2.92f;  // voltage when tuned in pH 4.01 buffer
+
+        float slope = (4.01f - 6.86f) / (V_401 - V_686);
+        float intercept = 6.86f - slope * V_686;
+
+        float phValue = slope * voltage + intercept;
+        if (phValue < 0)
+            return 0;
+        else if (phValue > 14)
+            return 14;
+        return phValue;
+    }
+
+    float readIntercept(const float neutralVoltage = 2.68, const float acidVoltage = 3.15)
+    {
+        float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
+        if (_filter != nullptr)
+            _filter->filter(val);
+        float voltage = val / 1000.0F; // voltage in V
+
+        const float V_686 = neutralVoltage; // voltage when tuned in pH 6.86 buffer
+        const float V_401 = acidVoltage;    // voltage when tuned in pH 4.01 buffer
 
         float slope = (4.01f - 6.86f) / (V_401 - V_686);
         float intercept = 6.86f - slope * V_686;

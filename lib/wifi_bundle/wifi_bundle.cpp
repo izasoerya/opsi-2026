@@ -1,9 +1,10 @@
 #include "wifi_bundle.h"
 
-WiFiBundle::WiFiBundle(const char *ssid, const char *password, const char *hostname)
-    : _ssid(ssid),
-      _password(password),
-      _hostname(hostname) {}
+WiFiBundle::WiFiBundle(
+        const char *ssid, const char *password, const char *hostname,
+        wifi_power_t *txPower)
+    : _ssid(ssid), _password(password), _hostname(hostname),
+      _txPowerConfig(txPower) {}
 
 WiFiBundle::~WiFiBundle()
 {
@@ -15,6 +16,9 @@ bool WiFiBundle::begin(bool restartOnFail)
     WiFi.mode(WIFI_STA);
     WiFi.hostname(_hostname);
     WiFi.begin(_ssid, _password);
+
+    if (_txPowerConfig != nullptr)
+        WiFi.setTxPower(*_txPowerConfig);
 
     uint8_t counter = 0;
     while (WiFi.status() != WL_CONNECTED)
@@ -41,6 +45,11 @@ const char *WiFiBundle::localIP()
     IPAddress ip = WiFi.localIP();
     snprintf(_localIP, sizeof(_localIP), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
     return _localIP;
+}
+
+int8_t WiFiBundle::getdBm()
+{
+    return WiFi.RSSI();
 }
 
 void WiFiBundle::reconnect()

@@ -2,6 +2,8 @@
 #include <ElegantOTA.h>
 #include <WebSerial.h>
 #include <LiquidCrystal_I2C.h>
+#include <INA219.h>
+
 #include "display/lcd_i2c_basic.h"
 
 #include "../utils/utils.h"
@@ -12,6 +14,7 @@
 #include "sensor/configs/ph_ph4502c.h"
 #include "sensor/filters/moving_average.h"
 #include "sensor/configs/tds_dfrobot_sensor.h"
+#include "sensor/configs/ph_dfrobot_sensor.h"
 
 #define BLYNK_PRINT Serial
 #define BLYNK_TEMPLATE_ID "TMPL69LwuKF9Y"
@@ -21,17 +24,17 @@
 #define BLYNK_WATER_PH_PIN V1
 #define BLYNK_TDS_PIN V0
 #define BLYNK_TURBIDITY_PIN V2
-#define BLYNK_TEMPERATURE_PIN V3
+#define BLYNK_POWER_IN_PIN V3
+#define BLYNK_POWER_OUT_PIN V4
 
-#define PIN_SDA 5
-#define PIN_SCL 6
+#define PIN_SDA 8
+#define PIN_SCL 9
 
 #define ADDRESS_ADS1115 0x48
 #define ADDRESS_OLED 0x3C
-#define ADS_CHANNEL_TURBIDITY 0
-#define ADS_CHANNEL_PH_TEMPERATURE 1
-#define ADS_CHANNEL_PH 2
-#define ADS_CHANNEL_TDS 3
+#define ADS_CHANNEL_TURBIDITY 1
+#define ADS_CHANNEL_PH 0
+#define ADS_CHANNEL_TDS 2
 
 const uint16_t adsResolution = 32768;
 const float adsRef = 4.096;
@@ -49,37 +52,36 @@ WiFiBlynk blynk(
 
 ADS1115Module ads(ADS1115_ADDRESS, &Wire);
 
-MockADSSensor turbiditySensor(
+ADSSensor turbiditySensor(
     1, "Turbidity Sensor",
     ADS_CHANNEL_TURBIDITY, &ads,
     [](float value) -> float
     {
-        float voltage = value * adsRef / adsResolution;
-        return pow(voltage, 2) * 1120.4 + (5742.3 * voltage) - 4352.9; // Formula from DFRobot
+        float ntu = 0.1711493f * value - 488.5873f;
+        return ntu < 0 ? 0.0f : ntu;
     });
 
-MockADSSensor phTemperatureSensor(
-    1, "PH Temperature Sensor",
-    ADS_CHANNEL_PH_TEMPERATURE, &ads,
-    [](float value) -> float
-    { return value * adsRef / adsResolution * 100.0; }); // 10mV/°C linear sensor
-
-TrimmedMovingAverage filterPH(20, 5);
-MockPH4502CSensor phSensor(
+TrimmedMovingAverage filterPH(40, 10);
+PH4502CSensor phSensor(
     1, "PH Sensor",
     ADS_CHANNEL_PH, &ads,
-    &filterPH, &phTemperatureSensor);
+    &filterPH);
 
 TrimmedMovingAverage filterTDS(20, 5);
-MockTDSDFRobotSensor tdsSensor(
+TDSDFRobotSensor tdsSensor(
     1, "TDS Analog",
     ADS_CHANNEL_TDS, &ads,
-    &filterTDS, &phTemperatureSensor);
+    &filterTDS);
+
+INA219 inaInput(0x40);
+INA219 inaOutput(0x41);
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 AppState state = AppState::NORMAL_MODE;
-uint64_t prevBlynkSensor = 0;
+uint64_t prevSendBlynk = 0;
+uint64_t prevSampling = 0;
+uint8_t adsSensorCounter = 0;
 AsyncWebServer server(80);
 
 // #define CALIBRATION
@@ -87,8 +89,9 @@ AsyncWebServer server(80);
 void setup()
 {
     Serial.begin(115200);
-    // if (!blynk.begin())
-    //     Serial.println("WiFi is not connected, disabling OTA!");
+    WiFi.setTxPower(WIFI_POWER_8_5dBm); // Use this if using esp32-c3-supermini-black
+    if (!blynk.begin())
+        Serial.println("WiFi is not connected, disabling OTA!");
 
     Wire.begin(PIN_SDA, PIN_SCL);
 
@@ -98,36 +101,66 @@ void setup()
     lcd.createChar(1, (uint8_t *)ph_icon);
     lcd.createChar(2, (uint8_t *)tds_icon);
     lcd.createChar(3, (uint8_t *)turbidity_icon);
+    lcd.createChar(4, (uint8_t *)wifi_icon);
+    lcd.createChar(5, (uint8_t *)power_icon);
 
     ads.begin(ADS1X15_GAIN_4096MV);
     tdsSensor.begin();
     phSensor.begin();
 
-    // WebSerial.begin(&server);
-    // ElegantOTA.begin(&server);
-    // ElegantOTA.setAutoReboot(true);
+    inaInput.begin();
+    inaInput.setMaxCurrentShunt(5, 0.001);
+    inaOutput.begin();
+    inaOutput.setMaxCurrentShunt(5, 0.001);
 
-    // server.begin();
+    WebSerial.begin(&server);
+    ElegantOTA.begin(&server);
+    ElegantOTA.setAutoReboot(true);
+
+    server.begin();
 }
 
 #ifndef CALIBRATION
 
 void loop()
 {
-    // blynk.run();
-    // blynk.reconnect();
-    // ElegantOTA.loop();
+    blynk.run();
+    blynk.reconnect();
+    ElegantOTA.loop();
 
-    if (millis() - prevBlynkSensor > 2000)
+    static PikohidroSensorEntity sensor;
+    if (millis() - prevSampling > 50)
     {
-        PikohidroSensorEntity sensor{
-            .waterTurbidity = turbiditySensor.read(),
-            .waterPH = phSensor.read(),
-            .temperature = phTemperatureSensor.read(),
-            .waterTDS = tdsSensor.read(),
-        };
+        /**
+         * @brief Reading in turn since ADS is multiplexer
+         * if you read at once, i2c error like -1 or 263 will show up (from experiece)
+         */
+        if (adsSensorCounter == 0)
+        {
+            sensor.waterTurbidity = turbiditySensor.read();
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 1)
+        {
+            sensor.waterPH = phSensor.read();
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 2)
+        {
+            sensor.waterTDS = tdsSensor.read();
+            adsSensorCounter = 0;
+        }
+        sensor.powerIn = inaInput.getPower();   // These are not using ads so its fine to poll
+        sensor.powerOut = inaOutput.getPower(); // These are not using ads so its fine to poll
+
+        prevSampling = millis();
+    }
+
+    if (millis() - prevSendBlynk > 10000)
+    {
         const char *sensorString = sensor.toString();
-        // WebSerial.println(sensorString);
+        Serial.println(sensorString);
+        WebSerial.println(sensorString);
 
         PikohidroSystemEntity system{
             .freeHeap = ESP.getFreeHeap(),
@@ -136,34 +169,44 @@ void loop()
             .lastResetReason = esp_reset_reason(),
         };
         const char *systemString = system.toString();
-        // WebSerial.println(systemString);
+        Serial.println(systemString);
+        WebSerial.println(systemString);
 
-        // blynk.send(BLYNK_TURBIDITY_PIN, sensor.waterTurbidity);
-        // blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
-        // blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
-        // blynk.send(BLYNK_TEMPERATURE_PIN, sensor.temperature);
+        blynk.send(BLYNK_TURBIDITY_PIN, sensor.waterTurbidity);
+        blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
+        blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
+        blynk.send(BLYNK_POWER_IN_PIN, sensor.waterTDS);
+        blynk.send(BLYNK_POWER_OUT_PIN, sensor.waterTDS);
 
         lcd.clear();
         lcd.setCursor(0, 0);
         lcd.print("===== PIKOHIDRO =====");
 
         lcd.setCursor(0, 1);
-        lcd.write(byte(0));
-        lcd.printf("%.2fC", sensor.temperature);
-
-        lcd.setCursor(9, 1);
         lcd.write(byte(2));
-        lcd.printf("%.1fPPM", sensor.waterTDS);
+        lcd.printf("%.1fPPM", abs(sensor.waterTDS));
 
-        lcd.setCursor(0, 2);
+        lcd.setCursor(10, 1);
         lcd.write(byte(1));
         lcd.printf("%.2fPH", abs(sensor.waterPH));
 
-        lcd.setCursor(9, 2);
+        lcd.setCursor(0, 2);
         lcd.write(byte(3));
         lcd.printf("%.1fNTU", abs(sensor.waterTurbidity));
 
-        prevBlynkSensor = millis();
+        lcd.setCursor(10, 2);
+        lcd.write(byte(4));
+        lcd.printf("%ddBm", blynk.getSignalStrength());
+
+        lcd.setCursor(0, 3);
+        lcd.write(byte(5));
+        lcd.printf("I:%dW", abs(sensor.powerIn));
+
+        lcd.setCursor(10, 3);
+        lcd.write(byte(5));
+        lcd.printf("O:%dW", abs(sensor.powerOut));
+
+        prevSendBlynk = millis();
     }
 }
 
@@ -173,61 +216,13 @@ void loop()
 
 void loop()
 {
-    Serial.printf("Turb: %.2f\n", turbiditySensor.read());
-    Serial.printf("TDS: %.2f\n", tdsSensor.read());
-    Serial.printf("PH: %.2f\n", phSensor.read());
+    // Serial.printf("TDS: %.2f\n", (tdsSensor.read() / 368.0) * 500.0);
+    // Serial.printf("PH: %.2f\n", phSensor.read());
+    Serial.printf("Turb: %.1f, PH: %.2f, TDS: %.1f\n",
+                  turbiditySensor.read(),
+                  phSensor.read() / 6.17 * 6.86,
+                  tdsSensor.read() / 704.4 * 500.0);
     delay(50);
 }
 
 #endif
-
-// #include <Arduino.h>
-// #include <Wire.h>
-
-// void setup()
-// {
-//     Wire.begin(8, 9);
-//     Serial.begin(115200);
-//     Serial.println("\nI2C Scanner");
-// }
-
-// void loop()
-// {
-//     byte error, address;
-//     int nDevices;
-//     Serial.println("Scanning...");
-//     nDevices = 0;
-//     for (address = 1; address < 127; address++)
-//     {
-//         Wire.beginTransmission(address);
-//         error = Wire.endTransmission();
-//         if (error == 0)
-//         {
-//             Serial.print("I2C device found at address 0x");
-//             if (address < 16)
-//             {
-//                 Serial.print("0");
-//             }
-//             Serial.println(address, HEX);
-//             nDevices++;
-//         }
-//         else if (error == 4)
-//         {
-//             Serial.print("Unknow error at address 0x");
-//             if (address < 16)
-//             {
-//                 Serial.print("0");
-//             }
-//             Serial.println(address, HEX);
-//         }
-//     }
-//     if (nDevices == 0)
-//     {
-//         Serial.println("No I2C devices found\n");
-//     }
-//     else
-//     {
-//         Serial.println("done\n");
-//     }
-//     delay(5000);
-// }

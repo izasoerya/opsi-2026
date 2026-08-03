@@ -58,9 +58,8 @@ const char *hostName = "aquaponic-1";
 const char *blynkAuthToken = "d2oR-C4x_VlT26WNVydzEKntp-865JkX";
 WiFiBlynk blynk(
     blynkAuthToken,
-    ssid,
-    password,
-    hostName,
+    ssid, password, hostName,
+    wifi_power_t::WIFI_POWER_8_5dBm, // since im using ESP32 C3 Super Mini Black
     [](uint8_t virtualPin, bool state)
     {
         if (virtualPin == BLYNK_WATER_PUMP_PIN)
@@ -116,7 +115,9 @@ IPAddress wg_local_ip(WG_LOCAL_IP);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 AppState state = AppState::NORMAL_MODE;
-uint64_t prevBlynkSensor = 0;
+uint64_t prevBlynkSend = 0;
+uint64_t prevSampling = 0;
+uint8_t adsSensorCounter = 0;
 uint64_t prevScreen = 0;
 
 // #define CALIBRATION
@@ -124,10 +125,8 @@ uint64_t prevScreen = 0;
 void setup()
 {
     Serial.begin(115200);
-    // if (!blynk.begin())
-    //     Serial.println("WiFi is not connected, disabling OTA!");
-
-    // display.begin();
+    if (!blynk.begin())
+        Serial.println("WiFi is not connected, disabling OTA!");
 
     pinMode(PIN_WATER_PUMP, OUTPUT);
     pinMode(PIN_LED, OUTPUT);
@@ -150,35 +149,9 @@ void setup()
     waterLevelSensor.begin();
     lightIntensitySensor.begin();
 
-    // WebSerial.begin(&server);
-    // WebSerial.onMessage(
-    //     [&](uint8_t *data, size_t len)
-    //     {
-    //         String d = "";
-    //         for (uint8_t i = 0; i < len; i++)
-    //             d += char(data[i]);
-    //         state = Parser::parseCommand(d.c_str());
-    //     });
-
-    // ElegantOTA.begin(&server);
-    // ElegantOTA.setAutoReboot(true);
-
-    // server.begin();
-
-
-    
-    // === [WG+OTA] WiFi + WireGuard + ElegantOTA (baru, gak ganggu logic Blynk di atas) ===
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-    Serial.print("Menghubungkan ke WiFi");
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println();
-    Serial.print("WiFi tersambung, IP: ");
-    Serial.println(WiFi.localIP());
+    WebSerial.begin(&server);
+    ElegantOTA.begin(&server);
+    ElegantOTA.setAutoReboot(true);
  
     // WireGuard butuh waktu yang akurat untuk handshake
     configTime(7 * 3600, 0, "pool.ntp.org", "time.google.com");
@@ -196,33 +169,48 @@ void setup()
     ElegantOTA.begin(&server, OTA_USERNAME, OTA_PASSWORD);
     server.begin();
     // =====================================================================
+    server.begin();
 }
 
 #ifndef CALIBRATION
 
 void loop()
 {
-    // === [WG+OTA] ===
+    blynk.run();
+    blynk.reconnect();
     ElegantOTA.loop();
-    // ================
-    // blynk.run();
-    // blynk.reconnect();
-    // ElegantOTA.loop();
     tdsSensor.update();
     phSensor.update();
 
-    if (millis() - prevBlynkSensor > 2000)
+    static AquaponicSensorEntity sensor;
+    if (millis() - prevSampling > 50)
     {
-        AquaponicSensorEntity sensor{
-            .lightIntensity = uint16_t(lightIntensitySensor.read()),
-            .waterLevel = waterLevelSensor.read(),
-            .waterPH = phSensor.read(),
-            .waterTemperature = waterTemperatureSensor.read(),
-            .waterTDS = tdsSensor.read(),
-        };
+        /**
+         * @brief Reading in turn since ADS is multiplexer
+         * if you read at once, i2c error like -1 or 263 will show up (from experiece)
+         */
+        if (adsSensorCounter == 0)
+        {
+            sensor.waterTDS = tdsSensor.read(),
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 1)
+        {
+            sensor.waterPH = phSensor.read(),
+            adsSensorCounter = 0;
+        }
+        sensor.lightIntensity = uint16_t(lightIntensitySensor.read()); // These are not using ads so its fine to poll
+        sensor.waterTemperature = waterTemperatureSensor.read();       // These are not using ads so its fine to poll
+        sensor.waterLevel = waterLevelSensor.read(),
+
+        prevSampling = millis();
+    }
+
+    if (millis() - prevBlynkSend > 10000)
+    {
         const char *sensorString = sensor.toString();
         Serial.println(sensorString);
-        // WebSerial.println(sensorString);
+        WebSerial.println(sensorString);
 
         AquaponicSystemEntity system{
             .freeHeap = ESP.getFreeHeap(),
@@ -232,21 +220,17 @@ void loop()
         };
         const char *systemString = system.toString();
         Serial.println(systemString);
-        // WebSerial.println(sensorString);
+        WebSerial.println(sensorString);
 
-        // blynk.send(BLYNK_AMBIENT_LIGHT_PIN, sensor.lightIntensity);
-        // blynk.send(BLYNK_WATER_LEVEL_PIN, sensor.waterLevel);
-        // blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
-        // blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
-        // blynk.send(BLYNK_WATER_TEMPERATURE_PIN, sensor.waterTemperature);
+        blynk.send(BLYNK_AMBIENT_LIGHT_PIN, sensor.lightIntensity);
+        blynk.send(BLYNK_WATER_LEVEL_PIN, sensor.waterLevel);
+        blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
+        blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
+        blynk.send(BLYNK_WATER_TEMPERATURE_PIN, sensor.waterTemperature);
 
         lcd.setCursor(0, 0);
         lcd.write(byte(0));
         lcd.printf("%.1fC", sensor.waterTemperature);
-
-        // lcd.setCursor(7, 0);
-        // lcd.write(byte(10));
-        // lcd.printf("%dm", 3);
 
         lcd.setCursor(7, 0);
         lcd.write(byte(3));
@@ -260,7 +244,7 @@ void loop()
         lcd.write(byte(2));
         lcd.printf("%.1fppm", sensor.waterTDS);
 
-        prevBlynkSensor = millis();
+        prevBlynkSend = millis();
     }
 }
 

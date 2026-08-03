@@ -5,8 +5,10 @@
 #include "ads_sensor.h"
 #include "../filters/base_filter.h"
 
+// TODO: IMPLEMENT INTERFACE PATTERN FOR CALIBRATION FORMULA AND ADC CONFIG
+
 /**
- * @brief Mock PH 4502C Sensor Class.
+ * @brief PH 4502C Sensor Class.
  * You can assign either ads object or pin analog
  *
  * @param uint8_t channelADS
@@ -23,8 +25,8 @@ private:
     uint64_t _prevSampling = 0;
 
     const float _offset = 0;
-    const float _vref = 3.3;
-    const uint16_t _adcResolution = 4095;
+    const float _vref = 4.096;
+    const uint16_t _adcResolution = 32768;
     ADS1115Module *_ads = nullptr;
 
     BaseFilter *_filter = nullptr;
@@ -64,17 +66,34 @@ public:
         }
     }
 
+    float readVoltage()
+    {
+        float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
+        if (_filter != nullptr)
+            _filter->filter(val);
+        float voltage = val * (float)_vref / _adcResolution; // voltage in V
+        return voltage;
+    }
+
     float read() override
     {
         float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
         if (_filter != nullptr)
             _filter->filter(val);
-        float averageVoltage = val * (float)_vref / _adcResolution;
+        float voltage = val * (float)_vref / _adcResolution; // voltage in V
 
-        float pHValue = _temperatureSensor != nullptr
-                            ? (7.0 + ((2.5 - averageVoltage) / 0.18)) + (_temperatureSensor->read() - 25.0) * 0.03
-                            : (7.0 + ((2.5 - averageVoltage) / 0.18));
-        return pHValue;
+        const float V_686 = 2.525f; // voltage when tuned in pH 6.86 buffer
+        const float V_401 = 2.92f;  // voltage when tuned in pH 4.01 buffer
+
+        float slope = (4.01f - 6.86f) / (V_401 - V_686);
+        float intercept = 6.86f - slope * V_686;
+
+        float phValue = slope * voltage + intercept;
+        if (phValue < 0)
+            return 0;
+        else if (phValue > 14)
+            return 14;
+        return phValue;
     }
 };
 

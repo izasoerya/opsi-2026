@@ -14,7 +14,7 @@
 #define TFT_CS_PIN 5
 
 TFT_eSPI tft = TFT_eSPI();
-DisplayTFT320X240P display(tft);
+DisplayTFT480X320P display(tft);
 
 const char *ssid = "NodeSensorWiFi1";
 const char *password = "muhammadnabiyullah";
@@ -80,13 +80,13 @@ void setup()
 
     SPI.begin(TFT_SCK_PIN, TFT_MISO_PIN, TFT_MOSI_PIN, TFT_CS_PIN);
     display.begin();
-    display.setHeaderTitle("BANDUNG-PERSEMAIAN-1");
+    display.setHeaderTitle("BANDUNG-SEEDBED-1");
     display.setFooterText("v1.0.0");
-    display.setContainer1("TEMPERATURE", "0.0 C", DisplayColor::ORANGE, IconType::THERMO);
-    display.setContainer2("HUMIDITY", "0.0 %", DisplayColor::BLUE, IconType::DROPLET);
-    display.setContainer3("WIND SPEED", "0.0 km/h", DisplayColor::TEXT, IconType::WIND);
-    display.setContainer4("WIND DIR", "N", DisplayColor::YELLOW, IconType::COMPASS);
-    display.setContainer5("RAINFALL", "0.0 mm", DisplayColor::TEAL, IconType::RAIN);
+    display.setContainer1("TEMPERATURE", "WAITING FOR DATA...", DisplayColor::ORANGE, IconType::THERMO);
+    display.setContainer2("HUMIDITY", "WAITING FOR DATA...", DisplayColor::BLUE, IconType::DROPLET);
+    display.setContainer3("WIND SPEED", "WAITING FOR DATA...", DisplayColor::TEXT, IconType::WIND);
+    display.setContainer4("WIND DIR", "WAITING FOR DATA...", DisplayColor::YELLOW, IconType::COMPASS);
+    display.setContainer5("RAINFALL", "WAITING FOR DATA...", DisplayColor::TEAL, IconType::RAIN);
     display.setContainer6("COMPANY", "T4T x ZTS", DisplayColor::GREEN, IconType::COMPANY);
     display.drawLayout(); // one full paint of shells/borders/icons/labels
 }
@@ -140,11 +140,11 @@ void loop()
         // sensor.toJson(buffer, sizeof(buffer));
         // wifi.send("sensors", buffer);
 
-        char buf[16];
+        char buf[24]; // Follow max char in custom library
         snprintf(buf, sizeof(buf), "%.1f C", sensor.airTemperature);
         display.updateContainerValue(1, buf);
 
-        snprintf(buf, sizeof(buf), "%.1f &RH", sensor.airHumidity);
+        snprintf(buf, sizeof(buf), "%.1f %RH", sensor.airHumidity);
         display.updateContainerValue(2, buf);
 
         snprintf(buf, sizeof(buf), "%.1f km/h", sensor.windSpeed);
@@ -153,7 +153,7 @@ void loop()
         snprintf(buf, sizeof(buf), "%s", Parser::parseWindDirection(sensor.windDirection));
         display.updateContainerValue(4, buf);
 
-        snprintf(buf, sizeof(buf), "%.1f mm", sensor.rainFall);
+        snprintf(buf, sizeof(buf), "%.1f mm/day", sensor.rainFall);
         display.updateContainerValue(5, buf);
 
         struct tm timeinfo;

@@ -30,9 +30,13 @@ private:
     }
 
 public:
-    WiFiBlynk(const char *authToken, const char *ssid, const char *password, const char *hostname, std::function<void(int, bool)> callback)
-        : _authToken(authToken), _hostname(hostname),
-          _wifi(WiFiBundle(ssid, password, hostname)),
+    WiFiBlynk(
+        const char *authToken,
+        const char *ssid, const char *password, const char *hostname,
+        wifi_power_t txPower = wifi_power_t::WIFI_POWER_19_5dBm,
+        std::function<void(int, bool)> callback = nullptr)
+        : _authToken(authToken),
+          _hostname(hostname), _wifi(WiFiBundle(ssid, password, hostname, &txPower)),
           _callback(callback)
     {
         wifiBlynkInstance() = this;
@@ -45,6 +49,11 @@ public:
         Blynk.config(_authToken);
         Blynk.connect();
         return true;
+    }
+
+    int8_t getSignalStrength()
+    {
+        return _wifi.getdBm();
     }
 
     void send(uint8_t virtualPin, float value)

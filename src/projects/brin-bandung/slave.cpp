@@ -29,10 +29,19 @@ const uint8_t pinSDA = 4;             // TODO: CHANGE TO APPROPRIATE PIN
 const uint8_t pinSCL = 5;             // TODO: CHANGE TO APPROPRIATE PIN
 
 SHT2x sht;
+
+const char *ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 25200;
+const int daylightOffset_sec = 3600;
+
 volatile uint32_t counterAnemo = 0;
 volatile uint32_t counterRainfall = 0;
+
 uint32_t prevTimeReading = 0;
 uint32_t delayReading = 10000;
+bool shouldRestartNow = false;
+bool shouldResetRainfall = false;
+bool hasResetToday = false;
 
 void setup()
 {
@@ -60,6 +69,8 @@ void setup()
     attachInterrupt(
         pinRainfall, []() -> void ARDUINO_ISR_ATTR
         { counterRainfall++; }, RISING);
+
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
     modbusServer.registerWorker(1, READ_HOLD_REGISTER, &FC03); // FC=03 for serverID=1
     modbusServer.start(5000, 2, 20000);
@@ -102,7 +113,27 @@ void loop()
         modbusData[10] = (uint16_t)(minHeap & 0xFFFF);
         modbusData[11] = (uint16_t)esp_reset_reason();
 
-        // TODO: IMPLEMENT RESET ISR COUNTER EVERY 12 PM
+        // === APP CONFIG DATA ===
+        modbusData[12] = delayReading;
+        modbusData[13] = shouldRestartNow;
+        modbusData[14] = shouldResetRainfall;
+        modbusData[15] = fabs(WiFi.RSSI());
+
+        struct tm timeinfo;
+        getLocalTime(&timeinfo);
+        int hour = timeinfo.tm_hour;
+        int minute = timeinfo.tm_min;
+
+        if (hour == 23 && minute == 59 && !hasResetToday)
+        {
+            counterRainfall = 0;
+            hasResetToday = true;
+            Serial.println("Counter reset at 23:59 PM");
+        }
+
+        if (hour == 0 || minute == 0)
+            hasResetToday = false;
+
         // TODO: (OPTIONAL) STORE COUNTER AT EEPROM IN CASE OF WATCHDOG / RESET
     }
 }

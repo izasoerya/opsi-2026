@@ -20,6 +20,9 @@
 #include "transmitter/configs/lora.h"
 #include "transmitter/configs/wifi_module.h"
 
+#include "display/display_oled.h"
+#include "config.h"   //
+#include <WireGuard-ESP32.h>
 #define BLYNK_PRINT Serial
 #define BLYNK_TEMPLATE_ID "TMPL6MXdBYHV3"
 #define BLYNK_TEMPLATE_NAME "Aquaponic"
@@ -104,6 +107,11 @@ TDSDFRobotSensor tdsSensor(
 
 AsyncWebServer server(80);
 
+// === [WG+OTA] ===
+WireGuard wg;
+IPAddress wg_local_ip(WG_LOCAL_IP);
+// ================
+
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 AppState state = AppState::NORMAL_MODE;
@@ -144,7 +152,23 @@ void setup()
     WebSerial.begin(&server);
     ElegantOTA.begin(&server);
     ElegantOTA.setAutoReboot(true);
-
+ 
+    // WireGuard butuh waktu yang akurat untuk handshake
+    configTime(7 * 3600, 0, "pool.ntp.org", "time.google.com");
+    time_t now = time(nullptr);
+    while (now < 100000)
+    {
+        delay(500);
+        now = time(nullptr);
+    }
+ 
+    bool wgOk = wg.begin(wg_local_ip, WG_PRIVATE_KEY, WG_ENDPOINT_ADDRESS,
+                          WG_ENDPOINT_PUBLIC_KEY, WG_ENDPOINT_PORT);
+    Serial.println(wgOk ? "WireGuard tersambung" : "Gagal konek WireGuard!");
+ 
+    ElegantOTA.begin(&server, OTA_USERNAME, OTA_PASSWORD);
+    server.begin();
+    // =====================================================================
     server.begin();
 }
 

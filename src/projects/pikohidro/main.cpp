@@ -48,7 +48,7 @@ WiFiBlynk blynk(
     ssid,
     password,
     hostName,
-    WIFI_POWER_19_5dBm,
+    wifi_power_t::WIFI_POWER_8_5dBm,
     [](uint8_t virtualPin, bool state) {});
 
 ADS1115Module ads(ADDRESS_ADS1115, &Wire);
@@ -84,13 +84,13 @@ uint64_t prevSendBlynk = 0;
 uint64_t prevSampling = 0;
 uint8_t adsSensorCounter = 0;
 AsyncWebServer server(80);
+int16_t arrayADS[3];
 
 // #define CALIBRATION
 
 void setup()
 {
     Serial.begin(115200);
-    WiFi.setTxPower(WIFI_POWER_8_5dBm); // Use this if using esp32-c3-supermini-black
     if (!blynk.begin())
         Serial.println("WiFi is not connected, disabling OTA!");
 
@@ -138,26 +138,29 @@ void loop()
          */
         if (adsSensorCounter == 0)
         {
-            sensor.waterTurbidity = turbiditySensor.read();
+            arrayADS[0] = turbiditySensor.read();
             adsSensorCounter++;
         }
         else if (adsSensorCounter == 1)
         {
-            sensor.waterPH = phSensor.read();
+            arrayADS[1] = phSensor.readIntercept(2.525, 2.92);
             adsSensorCounter++;
         }
         else if (adsSensorCounter == 2)
         {
-            sensor.waterTDS = tdsSensor.read();
+            arrayADS[2] = tdsSensor.read();
             adsSensorCounter = 0;
         }
+        sensor.waterTurbidity = arrayADS[0];
+        sensor.waterPH = arrayADS[1];
+        sensor.waterTDS = arrayADS[2];
         sensor.powerIn = inaInput.getPower();   // These are not using ads so its fine to poll
         sensor.powerOut = inaOutput.getPower(); // These are not using ads so its fine to poll
 
         prevSampling = millis();
     }
 
-    if (millis() - prevSendBlynk > 10000)
+    if (millis() - prevSendBlynk > 30000)
     {
         const char *sensorString = sensor.toString();
         Serial.println(sensorString);
@@ -214,21 +217,40 @@ void loop()
 #endif
 
 #ifdef CALIBRATION
-
+int16_t array[4];
+uint32_t prevCalibration = 0;
 void loop()
 {
-    // Serial.printf("Turb: %.1f, PH: %.2f, TDS: %.1f\n",
-    //               turbiditySensor.read(),
-    //               phSensor.read() / 6.17 * 6.86,
-    //               tdsSensor.read() / 704.4 * 500.0);
-    Serial.printf("A0: %d | ", ads.read(0));
-    delay(200);
-    Serial.printf("A1: %d | ", ads.read(1));
-    delay(200);
-    Serial.printf("A2: %d | ", ads.read(2));
-    delay(200);
-    Serial.printf("A3: %d\n", ads.read(3));
-    delay(200);
-}
+    // blynk.run();
+    // blynk.reconnect();
+    ElegantOTA.loop();
 
+    if (millis() - prevCalibration > 50)
+    {
+        if (adsSensorCounter == 0)
+        {
+            array[0] = ads.read(0);
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 1)
+        {
+            array[1] = phSensor.readRawVoltage();
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 2)
+        {
+            array[2] = ads.read(2);
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 3)
+        {
+            array[3] = ads.read(3);
+            adsSensorCounter = 0;
+        }
+        WebSerial.printf("A0: %d | A1: %d | A2: %d | A3 %d\n",
+                         array[0], array[1], array[2], array[3]);
+
+        prevCalibration = millis();
+    }
+}
 #endif

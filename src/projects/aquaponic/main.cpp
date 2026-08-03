@@ -8,11 +8,11 @@
 #include "../utils/parser.h"
 #include "models.h"
 
-#include "sensor/configs/ads_sensor.h"
+#include "reader-module/ads1115_module.h"
 #include "sensor/configs/ds18b20_sensor.h"
 #include "sensor/configs/bh1750_sensor.h"
 #include "sensor/configs/ultrasonic_sensor.h"
-#include "sensor/configs/ph_dfrobot_sensor.h"
+#include "sensor/configs/ph_ph4502c.h"
 #include "sensor/configs/tds_dfrobot_sensor.h"
 
 #include "sensor/filters/moving_average.h"
@@ -21,8 +21,8 @@
 #include "transmitter/configs/wifi_module.h"
 
 #include "display/display_oled.h"
-#include "config.h"   //
-#include <WireGuard-ESP32.h>
+// #include "config.h"   //
+// #include <WireGuard-ESP32.h>
 #define BLYNK_PRINT Serial
 #define BLYNK_TEMPLATE_ID "TMPL6MXdBYHV3"
 #define BLYNK_TEMPLATE_NAME "Aquaponic"
@@ -79,7 +79,7 @@ WiFiBlynk blynk(
         }
     });
 
-ADS1115Module ads(ADS1115_ADDRESS, &Wire);
+ADS1115Module ads(ADS1115_DEFAULT_ADDRESS, &Wire);
 
 DS18B20Sensor waterTemperatureSensor(
     1, "Water Temperature",
@@ -94,7 +94,7 @@ BH1750Sensor lightIntensitySensor(
     &Wire, ADDRESS_BH1750);
 
 TrimmedMovingAverage filterPH(20, 5);
-PHDFRobotSensor phSensor(
+PH4502CSensor phSensor(
     1, "PH DFRobot",
     ADS_CHANNEL_PH, &ads,
     &filterPH, &waterTemperatureSensor);
@@ -107,10 +107,10 @@ TDSDFRobotSensor tdsSensor(
 
 AsyncWebServer server(80);
 
-// === [WG+OTA] ===
-WireGuard wg;
-IPAddress wg_local_ip(WG_LOCAL_IP);
-// ================
+// // === [WG+OTA] ===
+// WireGuard wg;
+// IPAddress wg_local_ip(WG_LOCAL_IP);
+// // ================
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
@@ -119,6 +119,7 @@ uint64_t prevBlynkSend = 0;
 uint64_t prevSampling = 0;
 uint8_t adsSensorCounter = 0;
 uint64_t prevScreen = 0;
+float arrayADS[2];
 
 // #define CALIBRATION
 
@@ -142,7 +143,7 @@ void setup()
     lcd.createChar(4, (uint8_t *)light_icon);
     lcd.createChar(5, (uint8_t *)level_icon);
 
-    ads.begin(ADS1X15_GAIN_4096MV);
+    ads.begin(ADS1115_MV_4P096);
     tdsSensor.begin();
     phSensor.begin();
     waterTemperatureSensor.begin();
@@ -152,23 +153,22 @@ void setup()
     WebSerial.begin(&server);
     ElegantOTA.begin(&server);
     ElegantOTA.setAutoReboot(true);
- 
+
     // WireGuard butuh waktu yang akurat untuk handshake
     configTime(7 * 3600, 0, "pool.ntp.org", "time.google.com");
-    time_t now = time(nullptr);
-    while (now < 100000)
-    {
-        delay(500);
-        now = time(nullptr);
-    }
- 
-    bool wgOk = wg.begin(wg_local_ip, WG_PRIVATE_KEY, WG_ENDPOINT_ADDRESS,
-                          WG_ENDPOINT_PUBLIC_KEY, WG_ENDPOINT_PORT);
-    Serial.println(wgOk ? "WireGuard tersambung" : "Gagal konek WireGuard!");
- 
-    ElegantOTA.begin(&server, OTA_USERNAME, OTA_PASSWORD);
-    server.begin();
+    // time_t now = time(nullptr);
+    // while (now < 100000)
+    // {
+    //     delay(500);
+    //     now = time(nullptr);
+    // }
+
+    // bool wgOk = wg.begin(wg_local_ip, WG_PRIVATE_KEY, WG_ENDPOINT_ADDRESS,
+    //                      WG_ENDPOINT_PUBLIC_KEY, WG_ENDPOINT_PORT);
+    // Serial.println(wgOk ? "WireGuard tersambung" : "Gagal konek WireGuard!");
+
     // =====================================================================
+    ElegantOTA.begin(&server);
     server.begin();
 }
 
@@ -179,8 +179,6 @@ void loop()
     blynk.run();
     blynk.reconnect();
     ElegantOTA.loop();
-    tdsSensor.update();
-    phSensor.update();
 
     static AquaponicSensorEntity sensor;
     if (millis() - prevSampling > 50)
@@ -191,22 +189,25 @@ void loop()
          */
         if (adsSensorCounter == 0)
         {
-            sensor.waterTDS = tdsSensor.read(),
+            arrayADS[0] = tdsSensor.read();
             adsSensorCounter++;
         }
         else if (adsSensorCounter == 1)
         {
-            sensor.waterPH = phSensor.read(),
+            arrayADS[1] = phSensor.readIntercept(2.68, 3.15);
             adsSensorCounter = 0;
         }
+
+        sensor.waterTDS = arrayADS[0];
+        sensor.waterPH = arrayADS[1];
         sensor.lightIntensity = uint16_t(lightIntensitySensor.read()); // These are not using ads so its fine to poll
         sensor.waterTemperature = waterTemperatureSensor.read();       // These are not using ads so its fine to poll
-        sensor.waterLevel = waterLevelSensor.read(),
+        sensor.waterLevel = waterLevelSensor.read();
 
         prevSampling = millis();
     }
 
-    if (millis() - prevBlynkSend > 10000)
+    if (millis() - prevBlynkSend > 30000)
     {
         const char *sensorString = sensor.toString();
         Serial.println(sensorString);
@@ -234,7 +235,7 @@ void loop()
 
         lcd.setCursor(7, 0);
         lcd.write(byte(3));
-        lcd.printf("%.1fPH", abs(sensor.waterPH));
+        lcd.printf("%.1fPH", sensor.waterPH);
 
         lcd.setCursor(0, 1);
         lcd.write(byte(4));
@@ -251,9 +252,40 @@ void loop()
 #endif
 
 #ifdef CALIBRATION
+int16_t array[4];
+uint32_t prevCalibration = 0;
 void loop()
 {
-    Serial.printf("PH: %.2f\n", phSensor.read());
-    delay(50);
+    // blynk.run();
+    // blynk.reconnect();
+    ElegantOTA.loop();
+
+    if (millis() - prevCalibration > 50)
+    {
+        if (adsSensorCounter == 0)
+        {
+            array[0] = ads.read(0);
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 1)
+        {
+            array[1] = phSensor.readRawVoltage();
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 2)
+        {
+            array[2] = ads.read(2);
+            adsSensorCounter++;
+        }
+        else if (adsSensorCounter == 3)
+        {
+            array[3] = ads.read(3);
+            adsSensorCounter = 0;
+        }
+        WebSerial.printf("A0: %d | A1: %d | A2: %d | A3 %d\n",
+                         array[0], array[1], array[2], array[3]);
+
+        prevCalibration = millis();
+    }
 }
 #endif

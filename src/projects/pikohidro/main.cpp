@@ -10,7 +10,7 @@
 #include "../utils/parser.h"
 #include "models.h"
 
-#include "sensor/configs/ads_sensor.h"
+#include "reader-module/ads1115_module.h"
 #include "sensor/configs/ph_ph4502c.h"
 #include "sensor/filters/moving_average.h"
 #include "sensor/configs/tds_dfrobot_sensor.h"
@@ -48,9 +48,10 @@ WiFiBlynk blynk(
     ssid,
     password,
     hostName,
+    WIFI_POWER_19_5dBm,
     [](uint8_t virtualPin, bool state) {});
 
-ADS1115Module ads(ADS1115_ADDRESS, &Wire);
+ADS1115Module ads(ADDRESS_ADS1115, &Wire);
 
 ADSSensor turbiditySensor(
     1, "Turbidity Sensor",
@@ -104,7 +105,7 @@ void setup()
     lcd.createChar(4, (uint8_t *)wifi_icon);
     lcd.createChar(5, (uint8_t *)power_icon);
 
-    ads.begin(ADS1X15_GAIN_4096MV);
+    ads.begin(ADS1115_MV_4P096);
     tdsSensor.begin();
     phSensor.begin();
 
@@ -216,13 +217,18 @@ void loop()
 
 void loop()
 {
-    // Serial.printf("TDS: %.2f\n", (tdsSensor.read() / 368.0) * 500.0);
-    // Serial.printf("PH: %.2f\n", phSensor.read());
-    Serial.printf("Turb: %.1f, PH: %.2f, TDS: %.1f\n",
-                  turbiditySensor.read(),
-                  phSensor.read() / 6.17 * 6.86,
-                  tdsSensor.read() / 704.4 * 500.0);
-    delay(50);
+    // Serial.printf("Turb: %.1f, PH: %.2f, TDS: %.1f\n",
+    //               turbiditySensor.read(),
+    //               phSensor.read() / 6.17 * 6.86,
+    //               tdsSensor.read() / 704.4 * 500.0);
+    Serial.printf("A0: %d | ", ads.read(0));
+    delay(200);
+    Serial.printf("A1: %d | ", ads.read(1));
+    delay(200);
+    Serial.printf("A2: %d | ", ads.read(2));
+    delay(200);
+    Serial.printf("A3: %d\n", ads.read(3));
+    delay(200);
 }
 
 #endif

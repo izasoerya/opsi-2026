@@ -17,21 +17,22 @@ WiFiModule wifi(ssid, password, hostname);
 AsyncWebServer server(80);
 
 ModbusServerTCPasync modbusServer;
-const uint8_t MAX_REGISTER = 5;
+const uint8_t MAX_REGISTER = 16;
 uint16_t modbusData[MAX_REGISTER];
 ModbusMessage FC03(ModbusMessage request);
 
-const uint8_t pinAnemo = 2;
-const uint8_t pinRainfall = 3;
-const uint8_t pinWindDirectionRX = 4;
-const uint8_t pinWindDirectionTX = 5;
-const uint8_t pinSDA = 4;
-const uint8_t pinSCL = 5;
+const uint8_t pinAnemo = 2;           // TODO: CHANGE TO APPROPRIATE PIN
+const uint8_t pinRainfall = 3;        // TODO: CHANGE TO APPROPRIATE PIN
+const uint8_t pinWindDirectionRX = 4; // TODO: CHANGE TO APPROPRIATE PIN
+const uint8_t pinWindDirectionTX = 5; // TODO: CHANGE TO APPROPRIATE PIN
+const uint8_t pinSDA = 4;             // TODO: CHANGE TO APPROPRIATE PIN
+const uint8_t pinSCL = 5;             // TODO: CHANGE TO APPROPRIATE PIN
 
 SHT2x sht;
 volatile uint32_t counterAnemo = 0;
 volatile uint32_t counterRainfall = 0;
-uint16_t prevTime = 0;
+uint32_t prevTimeReading = 0;
+uint32_t delayReading = 10000;
 
 void setup()
 {
@@ -41,10 +42,10 @@ void setup()
     if (wifi.begin())
         Serial.println(wifi.localIP());
 
-    ElegantOTA.begin(&server);
     ElegantOTA.setAutoReboot(true);
-    server.begin();
+    ElegantOTA.begin(&server);
     WebSerial.begin(&server);
+    server.begin();
 
     Wire.begin(pinSDA, pinSCL);
     if (!sht.begin())
@@ -66,29 +67,44 @@ void setup()
 
 void loop()
 {
-    // modbusData[0] = sht.getTemperature();
-    // modbusData[1] = sht.getHumidity();
-    // modbusData[2] = counterRainfall;
-    // modbusData[3] = counterAnemo;
+    if (millis() - prevTimeReading > delayReading)
+    {
+        // if (Serial1.available())
+        // {
+        //     String data = Serial1.readString(); // data yang diterima dari sensor berawalan tanda * dan diakhiri tanda #, contoh *1#
+        //     int a = data.indexOf("*");          // a adalah index tanda *
+        //     int b = data.indexOf("#");          // b adalah index tanda #
+        //     String resultWind = data.substring(a + 1, b);
+        //     modbusData[4] = Parser::parseStringWindDirection(resultWind);
+        // }
 
-    modbusData[0] = random(32768);
-    modbusData[1] = random(32768);
-    modbusData[2] = random(32768);
-    modbusData[3] = random(32768);
-    modbusData[4] = random(32768);
+        // modbusData[0] = sht.getTemperature();
+        // modbusData[1] = sht.getHumidity();
+        // modbusData[2] = counterRainfall;
+        // modbusData[3] = counterAnemo;
 
-    // if (Serial1.available())
-    // {
-    //     String data = Serial1.readString(); // data yang diterima dari sensor berawalan tanda * dan diakhiri tanda #, contoh *1#
-    //     int a = data.indexOf("*");          // a adalah index tanda *
-    //     int b = data.indexOf("#");          // b adalah index tanda #
-    //     String resultWind = data.substring(a + 1, b);
-    //     modbusData[4] = Parser::parseStringWindDirection(resultWind);
-    // }
+        // === SENSOR DATA ===
+        modbusData[0] = random(32768);
+        modbusData[1] = random(32768);
+        modbusData[2] = random(32768);
+        modbusData[3] = random(32768);
+        modbusData[4] = random(8);
 
-    // TODO: IMPLEMENT RESET ISR COUNTER EVERY 12 PM
-    // TODO: PUT SYSTEM LOG DATA IN MODBUS [5-END]
-    // TODO: (OPTIONAL) STORE COUNTER AT EEPROM IN CASE OF WATCHDOG / RESET
+        // === SYSTEM LOG DATA ===
+        uint32_t freeHeap = ESP.getFreeHeap();
+        modbusData[5] = (uint16_t)(freeHeap >> 16);    // High word
+        modbusData[6] = (uint16_t)(freeHeap & 0xFFFF); // Low word
+        uint32_t largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT);
+        modbusData[7] = (uint16_t)(largestBlock >> 16);
+        modbusData[8] = (uint16_t)(largestBlock & 0xFFFF);
+        uint32_t minHeap = ESP.getMinFreeHeap();
+        modbusData[9] = (uint16_t)(minHeap >> 16);
+        modbusData[10] = (uint16_t)(minHeap & 0xFFFF);
+        modbusData[11] = (uint16_t)esp_reset_reason();
+
+        // TODO: IMPLEMENT RESET ISR COUNTER EVERY 12 PM
+        // TODO: (OPTIONAL) STORE COUNTER AT EEPROM IN CASE OF WATCHDOG / RESET
+    }
 }
 
 ModbusMessage FC03(ModbusMessage request)

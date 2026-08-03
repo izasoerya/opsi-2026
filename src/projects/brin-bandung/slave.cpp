@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <esp_task_wdt.h>
 #include <ModbusServerTCPasync.h>
 #include <ElegantOTA.h>
 #include <WebSerial.h>
@@ -51,6 +52,9 @@ void setup()
     if (wifi.begin())
         Serial.println(wifi.localIP());
 
+    esp_task_wdt_init(60, true);
+    esp_task_wdt_add(NULL);
+
     ElegantOTA.setAutoReboot(true);
     ElegantOTA.begin(&server);
     WebSerial.begin(&server);
@@ -78,8 +82,11 @@ void setup()
 
 void loop()
 {
+    esp_task_wdt_reset();
+
     if (millis() - prevTimeReading > delayReading)
     {
+        prevTimeReading = millis();
         // if (Serial1.available())
         // {
         //     String data = Serial1.readString(); // data yang diterima dari sensor berawalan tanda * dan diakhiri tanda #, contoh *1#

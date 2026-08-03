@@ -24,7 +24,7 @@ private:
     uint16_t _rawBuffer[_windowSize];
     uint8_t _arrayIndex = 0;
     uint64_t _prevSampling = 0;
-    float _kValue = 1.121;
+    float _kValue = 1.0;
 
     const float _vref = 4.096;
     const uint16_t _adcResolution = 32768;
@@ -70,6 +70,15 @@ public:
         }
     }
 
+    float readVoltage()
+    {
+        float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
+        if (_filter != nullptr)
+            _filter->filter(val);
+        float averageVoltage = val * (float)_vref / _adcResolution;
+        return averageVoltage;
+    }
+
     float read() override
     {
         float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);
@@ -81,7 +90,7 @@ public:
         float compensationCoefficient = 1.0 + 0.02 * (currentTemperature - 25.0);
         float compensationVolatge = averageVoltage / compensationCoefficient;
         float tdsValue = (133.42 * compensationVolatge * compensationVolatge * compensationVolatge - 255.86 * compensationVolatge * compensationVolatge + 857.39 * compensationVolatge) * 0.5;
-        return tdsValue * _kValue;
+        return (tdsValue * _kValue / 59.1) * 500.0;
     }
 };
 

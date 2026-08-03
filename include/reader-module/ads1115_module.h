@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <ADS1X15.h>
+#include "ADS1115.h"
 
 class ADS1115Module
 {
@@ -16,15 +16,41 @@ public:
         : _ads(ADS1115(address)), _wire(wire) {}
     ~ADS1115Module() {}
 
-    bool begin(const uint8_t gain = ADS1X15_GAIN_4096MV)
+    bool begin(const uint8_t gain = ADS1115_PGA_4P096)
     {
+        if (!_ads.testConnection())
+            return false;
+
+        _ads.initialize();
+        _ads.setMode(ADS1115_MODE_SINGLESHOT);
+        _ads.setRate(ADS1115_RATE_128);
         _ads.setGain(gain);
-        return _ads.begin();
+
+        return true;
     }
 
     int16_t read(uint8_t channel)
     {
-        return _ads.readADC(channel);
+        switch (channel)
+        {
+        case 0:
+            _ads.setMultiplexer(ADS1115_MUX_P0_NG);
+            break;
+        case 1:
+            _ads.setMultiplexer(ADS1115_MUX_P1_NG);
+            break;
+        case 2:
+            _ads.setMultiplexer(ADS1115_MUX_P2_NG);
+            break;
+        case 3:
+            _ads.setMultiplexer(ADS1115_MUX_P3_NG);
+            break;
+        default:
+            return 0;
+        }
+        _ads.triggerConversion();
+
+        return _ads.getMilliVolts(false);
     }
 };
 

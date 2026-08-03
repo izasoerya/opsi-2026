@@ -75,6 +75,11 @@ public:
         return voltage;
     }
 
+    int16_t readSingleVoltage()
+    {
+        return _ads->read(_channelADS);
+    }
+
     float read() override
     {
         float val = _ads != nullptr ? (float)_ads->read(_channelADS) : (float)analogRead(_pinAnalog);

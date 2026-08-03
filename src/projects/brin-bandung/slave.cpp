@@ -21,6 +21,7 @@ ModbusServerTCPasync modbusServer;
 const uint8_t MAX_REGISTER = 16;
 uint16_t modbusData[MAX_REGISTER];
 ModbusMessage FC03(ModbusMessage request);
+ModbusMessage FC06(ModbusMessage request);
 
 const uint8_t pinAnemo = 2;           // TODO: CHANGE TO APPROPRIATE PIN
 const uint8_t pinRainfall = 3;        // TODO: CHANGE TO APPROPRIATE PIN
@@ -77,7 +78,9 @@ void setup()
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
     modbusServer.registerWorker(1, READ_HOLD_REGISTER, &FC03); // FC=03 for serverID=1
+    modbusServer.registerWorker(1, WRITE_HOLD_REGISTER, &FC06);
     modbusServer.start(5000, 2, 20000);
+    modbusData[12] = delayReading;
 }
 
 void loop()
@@ -86,6 +89,7 @@ void loop()
 
     if (millis() - prevTimeReading > delayReading)
     {
+        Serial.println("HEARTBEAT");
         prevTimeReading = millis();
         // if (Serial1.available())
         // {
@@ -121,23 +125,31 @@ void loop()
         modbusData[11] = (uint16_t)esp_reset_reason();
 
         // === APP CONFIG DATA ===
+        uint32_t prevDelay = delayReading;
+        delayReading = prevDelay == modbusData[12] ? prevDelay : modbusData[12];
         modbusData[12] = delayReading;
         modbusData[13] = shouldRestartNow;
         modbusData[14] = shouldResetRainfall;
         modbusData[15] = fabs(WiFi.RSSI());
 
+        delayReading = modbusData[12];
+
+        if (shouldRestartNow)
+            ESP.restart();
+
+        if (shouldResetRainfall)
+            counterRainfall = 0;
+
         struct tm timeinfo;
         getLocalTime(&timeinfo);
         int hour = timeinfo.tm_hour;
         int minute = timeinfo.tm_min;
-
         if (hour == 23 && minute == 59 && !hasResetToday)
         {
             counterRainfall = 0;
             hasResetToday = true;
             Serial.println("Counter reset at 23:59 PM");
         }
-
         if (hour == 0 || minute == 0)
             hasResetToday = false;
 
@@ -167,13 +179,42 @@ ModbusMessage FC03(ModbusMessage request)
         for (uint8_t i = 0; i < words; i++)
             response.add((uint16_t)modbusData[addr + i]);
 
-        Serial.printf("Req Slave Id: %d, FC: %d, Data: [%d, %d, %d, %d, %d]",
+        Serial.printf("Req Slave Id: %d, FC: %d, Data: [%d, %d, %d, %d, %d]\n",
                       request.getServerID(), request.getFunctionCode(),
                       modbusData[addr + 0], modbusData[addr + 1], modbusData[addr + 2], modbusData[addr + 3], modbusData[addr + 4]);
 
-        WebSerial.printf("Req Slave Id: %d, FC: %d, Data: [%d, %d, %d, %d, %d]",
+        WebSerial.printf("Req Slave Id: %d, FC: %d, Data: [%d, %d, %d, %d, %d]\n",
                          request.getServerID(), request.getFunctionCode(),
                          modbusData[addr + 0], modbusData[addr + 1], modbusData[addr + 2], modbusData[addr + 3], modbusData[addr + 4]);
     }
+    return response;
+}
+
+ModbusMessage FC06(ModbusMessage request)
+{
+    ModbusMessage response;
+    uint16_t addr = 0;  // Register address
+    uint16_t value = 0; // Value to write
+
+    request.get(2, addr);  // read address from request
+    request.get(4, value); // read value from request
+
+    Serial.printf("FC06: Write register %d = %d\n", addr, value);
+
+    // Address overflow check
+    if (addr >= 16)
+    { // Your modbusData array is 16 words
+        response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);
+        return response;
+    }
+
+    // Write to modbusDatary
+    modbusData[addr] = value;
+
+    // Echo back the request (standard FC06 response)
+    response.add(request.getServerID(), request.getFunctionCode());
+    response.add(addr);
+    response.add(value);
+
     return response;
 }

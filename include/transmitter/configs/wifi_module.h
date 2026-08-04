@@ -65,13 +65,13 @@ public:
         return _inet.getdBm();
     }
 
-    void send(const char *url, const char *payload)
+    int16_t send(const char *url, const char *payload)
     {
         if (basicConfig != nullptr)
             _inet.setTransport(basicConfig);
         else if (supabaseConfig != nullptr)
             _inet.setTransport(supabaseConfig);
-        _inet.post(url, payload);
+        return _inet.post(url, payload);
     }
 };
 

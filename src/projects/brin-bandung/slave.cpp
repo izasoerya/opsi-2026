@@ -89,8 +89,10 @@ void loop()
 
     if (millis() - prevTimeReading > delayReading)
     {
-        Serial.println("HEARTBEAT");
+        Serial.println("=== Task Sampling Data Running ===");
         prevTimeReading = millis();
+
+        // === SENSOR DATA ===
         // if (Serial1.available())
         // {
         //     String data = Serial1.readString(); // data yang diterima dari sensor berawalan tanda * dan diakhiri tanda #, contoh *1#
@@ -105,11 +107,10 @@ void loop()
         // modbusData[2] = counterRainfall;
         // modbusData[3] = counterAnemo;
 
-        // === SENSOR DATA ===
-        modbusData[0] = random(32768);
-        modbusData[1] = random(32768);
-        modbusData[2] = random(32768);
-        modbusData[3] = random(32768);
+        modbusData[0] = random(1250);
+        modbusData[1] = random(1000);
+        modbusData[2] = random(3000);
+        modbusData[3] = random(7500);
         modbusData[4] = random(8);
 
         // === SYSTEM LOG DATA ===

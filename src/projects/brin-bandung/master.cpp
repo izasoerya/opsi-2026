@@ -3,7 +3,9 @@
 #include <time.h>
 #include <ElegantOTA.h>
 #include <WebSerial.h>
+#include <WireGuard-ESP32.h>
 
+#include "config.h" // .env
 #include "models.h"
 #include "display/display_tft_spi_lcd/display_tft.h"
 #include "transmitter/configs/wifi_module.h"
@@ -26,6 +28,7 @@ const char *supabasePublicKey = "sb_publishable_coDPUa845ZtfYmoBWlZlgw_eH5vsCY7"
 SupabaseTransport transport = SupabaseTransport(supabaseUrl, supabasePublicKey);
 
 AsyncWebServer server(80);
+WireGuard wg;
 
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 25200;
@@ -40,7 +43,8 @@ void onErrorHandler(Error error, uint32_t token);
 const uint32_t deviceId = 2;
 uint32_t prevSamplingMillis = 0;
 uint32_t prevSystemLoggingMillis = 0;
-uint32_t counter = 0;
+uint32_t stampDataModbusCounter = 0;
+uint8_t errorTransactionModbusCounter = 0;
 uint16_t sensorDatas[5];
 
 void setup()
@@ -61,6 +65,16 @@ void setup()
         modbusSlaveIP = resolved;
     else
         ESP.restart(); // Master cant reach slave, no data will be feeded. Just restart
+
+    IPAddress wgLocalIP;
+    wgLocalIP.fromString(WG_DEVICE_MASTER_LOCAL_IP_1);
+    Serial.printf("wg ip: %s", wgLocalIP.toString());
+    bool wgOk = wg.begin(wgLocalIP, WG_DEVICE_MASTER_PRIVATE_KEY_1,
+                         WG_SERVER_PUBLIC_IP, WG_SERVER_PUBLIC_KEY, WG_ENDPOINT_PORT);
+    if (wgOk)
+        Serial.println("WireGuard successfully initialized on ESP32!");
+    else
+        Serial.println("WireGuard initialization failed!");
 
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
@@ -118,7 +132,7 @@ void loop()
         prevSamplingMillis = millis();
 
         Error err = modbusClient->addRequest(
-            (uint32_t)counter, // Token
+            (uint32_t)stampDataModbusCounter, // Token
             1, READ_HOLD_REGISTER, 0, 5);
         if (err != SUCCESS)
         {
@@ -174,17 +188,13 @@ void loop()
 
         display.setSignalStrength(wifi.getRssi());
         display.refresh();
-        counter++;
+        stampDataModbusCounter++;
     }
 }
 
 void onDataHandler(ModbusMessage response, uint32_t token)
 {
-    if (response.size() < 13)
-    {
-        Serial.println("Response too short, skipping");
-        return;
-    }
+    errorTransactionModbusCounter = 0; // Reset error counter since transaction work again
 
     uint16_t offset = 3;
     offset = response.get(offset, sensorDatas[0]);
@@ -200,4 +210,8 @@ void onErrorHandler(Error error, uint32_t token)
 {
     Serial.printf("[ERROR] token: %d | code: %d\n", token, error);
     WebSerial.printf("[ERROR] token: %d | code: %d\n", token, error);
+
+    if (errorTransactionModbusCounter > 10)
+        ESP.restart();
+    errorTransactionModbusCounter++;
 }

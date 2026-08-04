@@ -31,8 +31,8 @@ AsyncWebServer server(80);
 WireGuard wg;
 
 const char *ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = 25200;
-const int daylightOffset_sec = 3600;
+const uint16_t gmtOffset_sec = 25200;
+const uint16_t daylightOffset_sec = 0;
 
 const char *modbusSlaveUrl = "slave-bandung-persemaian-1";
 const uint16_t modbusSlavePort = 5000;
@@ -40,7 +40,7 @@ ModbusClientTCPasync *modbusClient = nullptr;
 void onDataHandler(ModbusMessage response, uint32_t token);
 void onErrorHandler(Error error, uint32_t token);
 
-const uint32_t deviceId = 2;
+const uint32_t deviceId = 1;
 uint32_t prevSamplingMillis = 0;
 uint32_t prevSystemLoggingMillis = 0;
 uint32_t stampDataModbusCounter = 0;
@@ -58,6 +58,11 @@ void setup()
     ElegantOTA.setAutoReboot(true);
     WebSerial.begin(&server);
     server.begin();
+
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(200, "text/plain", "Test Successful!"); });
+    server.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
+              { ESP.restart(); });
 
     uint8_t retryCounter = 0;
     struct tm timeinfo;
@@ -84,9 +89,10 @@ void setup()
     IPAddress wgLocalIP;
     wgLocalIP.fromString(WG_DEVICE_MASTER_LOCAL_IP_1);
     Serial.printf("wg ip: %s\n", wgLocalIP.toString());
+
     bool wgOk = wg.begin(wgLocalIP, WG_DEVICE_MASTER_PRIVATE_KEY_1,
                          WG_SERVER_PUBLIC_IP, WG_SERVER_PUBLIC_KEY, WG_ENDPOINT_PORT);
-    if (!wgOk)
+    if (wgOk)
         Serial.println("WireGuard successfully initialized on ESP32!");
     else
         Serial.println("WireGuard initialization failed!");
@@ -116,10 +122,8 @@ void loop()
     ElegantOTA.loop();
     wifi.reconnect();
 
-    if (millis() - prevSystemLoggingMillis > 60000 * 2) // Every 2 minute
+    if (millis() - prevSystemLoggingMillis > 60000 * 5) // Every 5 minute
     {
-        Serial.println("=== Task Sending data to supabase running ===");
-        WebSerial.println("=== Task Sending data to supabase running ===");
         prevSystemLoggingMillis = millis();
 
         SystemLogDto systemLog{
@@ -132,16 +136,19 @@ void loop()
         Serial.println(systemLog.toString());
         WebSerial.println(systemLog.toString());
 
-        // wifi.setTransport(&transport);
-        // char buffer[256];
-        // systemLog.toJson(buffer, sizeof(buffer));
-        // wifi.send("system_logs", buffer);
+        wifi.setTransport(&transport);
+        char buffer[256];
+        systemLog.toJson(buffer, sizeof(buffer));
+        int16_t response = wifi.send("system_logs", buffer);
+        if (response != 200 && response != 201)
+        {
+            Serial.printf("POST Failed: %d\n", response);
+            WebSerial.printf("POST Failed: %d\n", response);
+        }
     }
 
-    if (millis() - prevSamplingMillis > 10000) //  Every 10 second
+    if (millis() - prevSamplingMillis > 60000) //  Every 1 minute
     {
-        Serial.println("=== Task sampling data running ===");
-        WebSerial.println("=== Task sampling data running ===");
         prevSamplingMillis = millis();
 
         Error err = modbusClient->addRequest(
@@ -164,10 +171,15 @@ void loop()
         Serial.println(sensor.toString());
         WebSerial.println(sensor.toString());
 
-        // wifi.setTransport(&transport);
-        // char buffer[256];
-        // sensor.toJson(buffer, sizeof(buffer));
-        // wifi.send("sensors", buffer);
+        wifi.setTransport(&transport);
+        char buffer[256];
+        sensor.toJson(buffer, sizeof(buffer));
+        int16_t response = wifi.send("sensors", buffer);
+        if (response != 200 && response != 201)
+        {
+            Serial.printf("POST Failed: %d\n", response);
+            WebSerial.printf("POST Failed: %d\n", response);
+        }
 
         char buf[24]; // Follow max char in custom library
         snprintf(buf, sizeof(buf), "%.1f C", sensor.airTemperature);

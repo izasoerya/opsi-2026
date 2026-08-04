@@ -5,10 +5,12 @@
 #include <WebSerial.h>
 #include <Wire.h>
 #include <SHT2x.h>
+#include <WireGuard-ESP32.h>
 
+#include "config.h" // .env
+#include "models.h"
 #include "transmitter/configs/wifi_module.h"
 #include "../utils/utils.h"
-#include "models.h"
 
 const char *ssid = "NodeSensorWiFi1";
 const char *password = "muhammadnabiyullah";
@@ -16,6 +18,7 @@ const char *hostname = "slave-bandung-persemaian-1";
 WiFiModule wifi(ssid, password, hostname);
 
 AsyncWebServer server(80);
+WireGuard wg;
 
 ModbusServerTCPasync modbusServer;
 const uint8_t MAX_REGISTER = 16;
@@ -34,7 +37,7 @@ SHT2x sht;
 
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 25200;
-const int daylightOffset_sec = 3600;
+const int daylightOffset_sec = 0;
 
 volatile uint32_t counterAnemo = 0;
 volatile uint32_t counterRainfall = 0;
@@ -75,7 +78,37 @@ void setup()
         pinRainfall, []() -> void ARDUINO_ISR_ATTR
         { counterRainfall++; }, RISING);
 
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    uint8_t retryCounter = 0;
+    struct tm timeinfo;
+    configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.google.com");
+    while (!getLocalTime(&timeinfo) && retryCounter < 20)
+    {
+        Serial.print(".");
+        delay(500);
+        if (retryCounter >= 20)
+        {
+            Serial.println("\nNTP Sync Failed! Restarting...");
+            WebSerial.println("\nNTP Sync Failed! Restarting...");
+            ESP.restart(); // Critical: WireGuard handshake will fail without correct time
+        }
+        retryCounter++;
+    }
+
+    IPAddress wgLocalIP;
+    wgLocalIP.fromString(WG_DEVICE_SLAVE_LOCAL_IP_1);
+    Serial.printf("wg ip: %s", wgLocalIP.toString());
+    bool wgOk = wg.begin(wgLocalIP, WG_DEVICE_SLAVE_PRIVATE_KEY_1,
+                         WG_SERVER_PUBLIC_IP, WG_SERVER_PUBLIC_KEY, WG_ENDPOINT_PORT);
+    if (wgOk)
+    {
+        Serial.println("WireGuard successfully initialized on ESP32!");
+        WebSerial.println("WireGuard successfully initialized on ESP32!");
+    }
+    else
+    {
+        Serial.println("WireGuard initialization failed!");
+        WebSerial.println("WireGuard initialization failed!");
+    }
 
     modbusServer.registerWorker(1, READ_HOLD_REGISTER, &FC03); // FC=03 for serverID=1
     modbusServer.registerWorker(1, WRITE_HOLD_REGISTER, &FC06);

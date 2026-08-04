@@ -96,6 +96,7 @@ void loop()
     if (millis() - prevSystemLoggingMillis > 60000 * 2) // Every 2 minute
     {
         Serial.println("=== Task Sending data to supabase running ===");
+        WebSerial.println("=== Task Sending data to supabase running ===");
         prevSystemLoggingMillis = millis();
 
         SystemLogDto systemLog{
@@ -117,6 +118,7 @@ void loop()
     if (millis() - prevSamplingMillis > 10000) //  Every 10 second
     {
         Serial.println("=== Task sampling data running ===");
+        WebSerial.println("=== Task sampling data running ===");
         prevSamplingMillis = millis();
 
         Error err = modbusClient->addRequest(

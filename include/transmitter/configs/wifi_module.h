@@ -40,17 +40,29 @@ public:
         return false;
     }
 
-    IPAddress *resolveMDNS(const char *hostname)
+    IPAddress resolveMDNS(const char *hostname)
     {
-        static IPAddress query = MDNS.queryHost(hostname);
-        if (query.toString() == "0.0.0.0")
-            return nullptr;
-        return &query;
+        IPAddress query;
+        uint8_t attempts = 0;
+        while (attempts < 10)
+        {
+            query = MDNS.queryHost(hostname);
+            if (query != IPADDR_NONE && query.toString() != "0.0.0.0")
+                return query;
+            attempts++;
+            delay(1000);
+        }
+        return IPAddress(0, 0, 0, 0); // Explicit failure
     }
 
     void reconnect()
     {
         _inet.reconnect();
+    }
+
+    int8_t getRssi()
+    {
+        return _inet.getdBm();
     }
 
     void send(const char *url, const char *payload)

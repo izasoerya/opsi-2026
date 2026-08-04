@@ -95,6 +95,9 @@ void loop()
 {
     if (millis() - prevSystemLoggingMillis > 60000 * 2) // Every 2 minute
     {
+        Serial.println("=== Task Sending data to supabase running ===");
+        prevSystemLoggingMillis = millis();
+
         SystemLogDto systemLog{
             .deviceId = deviceId,
             .freeHeap = ESP.getFreeHeap(),
@@ -109,12 +112,13 @@ void loop()
         // char buffer[256];
         // systemLog.toJson(buffer, sizeof(buffer));
         // wifi.send("system_logs", buffer);
-
-        prevSystemLoggingMillis = millis();
     }
 
     if (millis() - prevSamplingMillis > 10000) //  Every 10 second
     {
+        Serial.println("=== Task sampling data running ===");
+        prevSamplingMillis = millis();
+
         Error err = modbusClient->addRequest(
             (uint32_t)counter, // Token
             1, READ_HOLD_REGISTER, 0, 5);
@@ -169,7 +173,6 @@ void loop()
 
         display.setSignalStrength(-55);
         display.refresh();
-        prevSamplingMillis = millis();
         counter++;
     }
 }

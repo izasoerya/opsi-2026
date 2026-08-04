@@ -59,6 +59,21 @@ void setup()
     WebSerial.begin(&server);
     server.begin();
 
+    uint8_t retryCounter = 0;
+    struct tm timeinfo;
+    configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.google.com");
+    while (!getLocalTime(&timeinfo) && retryCounter < 20)
+    {
+        Serial.print(".");
+        delay(500);
+        if (retryCounter >= 20)
+        {
+            Serial.println("\nNTP Sync Failed! Restarting...");
+            ESP.restart(); // Critical: WireGuard handshake will fail without correct time
+        }
+        retryCounter++;
+    }
+
     IPAddress modbusSlaveIP;
     IPAddress resolved = wifi.resolveMDNS(modbusSlaveUrl);
     if (resolved != IPAddress(0, 0, 0, 0))
@@ -68,15 +83,13 @@ void setup()
 
     IPAddress wgLocalIP;
     wgLocalIP.fromString(WG_DEVICE_MASTER_LOCAL_IP_1);
-    Serial.printf("wg ip: %s", wgLocalIP.toString());
+    Serial.printf("wg ip: %s\n", wgLocalIP.toString());
     bool wgOk = wg.begin(wgLocalIP, WG_DEVICE_MASTER_PRIVATE_KEY_1,
                          WG_SERVER_PUBLIC_IP, WG_SERVER_PUBLIC_KEY, WG_ENDPOINT_PORT);
-    if (wgOk)
+    if (!wgOk)
         Serial.println("WireGuard successfully initialized on ESP32!");
     else
         Serial.println("WireGuard initialization failed!");
-
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
     modbusClient = new ModbusClientTCPasync(modbusSlaveIP, modbusSlavePort);
     modbusClient->connect();

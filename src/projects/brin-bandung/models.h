@@ -28,7 +28,7 @@ struct SensorDto
     {
         JsonDocument doc;
         doc["device_id"] = deviceId;
-        doc["rain_fall"] = rainFall;
+        doc["rainfall"] = rainFall;
         doc["wind_direction"] = Parser::parseWindDirection(windDirection);
         doc["wind_speed"] = windSpeed;
         doc["temperature"] = airTemperature;

@@ -55,23 +55,16 @@ void setup()
     WebSerial.begin(&server);
     server.begin();
 
-    static IPAddress *modbusSlaveIP = nullptr;
-    uint8_t counter = 0;
-    while (modbusSlaveIP == nullptr)
-    {
-        modbusSlaveIP = wifi.resolveMDNS(modbusSlaveUrl);
-        if (counter == 10)
-            ESP.restart(); // Too long, maybe the master is the one who stuck
-
-        counter++;
-        delay(1000);
-    }
-    Serial.println(modbusSlaveIP->toString());
-    WebSerial.printf("Slave IP: %s", modbusSlaveIP->toString());
+    IPAddress modbusSlaveIP;
+    IPAddress resolved = wifi.resolveMDNS(modbusSlaveUrl);
+    if (resolved != IPAddress(0, 0, 0, 0))
+        modbusSlaveIP = resolved;
+    else
+        ESP.restart(); // Master cant reach slave, no data will be feeded. Just restart
 
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
-    modbusClient = new ModbusClientTCPasync(*modbusSlaveIP, modbusSlavePort);
+    modbusClient = new ModbusClientTCPasync(modbusSlaveIP, modbusSlavePort);
     modbusClient->connect();
     modbusClient->onDataHandler(&onDataHandler);
     modbusClient->onErrorHandler(&onErrorHandler);
@@ -93,6 +86,9 @@ void setup()
 
 void loop()
 {
+    ElegantOTA.loop();
+    wifi.reconnect();
+
     if (millis() - prevSystemLoggingMillis > 60000 * 2) // Every 2 minute
     {
         Serial.println("=== Task Sending data to supabase running ===");
@@ -164,7 +160,10 @@ void loop()
 
         struct tm timeinfo;
         if (!getLocalTime(&timeinfo))
-            Serial.println("Failed to obtain time");
+        {
+            Serial.println("[ERROR] NTP Error");
+            WebSerial.println("[ERROR] NTP Error");
+        }
         char timeHour[3];
         char timeMinute[3];
         char timeSecond[3];
@@ -173,7 +172,7 @@ void loop()
         strftime(timeSecond, 3, "%S", &timeinfo);
         display.setClock(atoi(timeHour), atoi(timeMinute), atoi(timeSecond));
 
-        display.setSignalStrength(-55);
+        display.setSignalStrength(wifi.getRssi());
         display.refresh();
         counter++;
     }
@@ -181,7 +180,6 @@ void loop()
 
 void onDataHandler(ModbusMessage response, uint32_t token)
 {
-    Serial.printf("Response: serverID=%d, FC=%d, Token=%08X, length=%d:\n", response.getServerID(), response.getFunctionCode(), token, response.size());
     if (response.size() < 13)
     {
         Serial.println("Response too short, skipping");
@@ -194,10 +192,12 @@ void onDataHandler(ModbusMessage response, uint32_t token)
     offset = response.get(offset, sensorDatas[2]);
     offset = response.get(offset, sensorDatas[3]);
     offset = response.get(offset, sensorDatas[4]);
-    Serial.printf("Registers: %u, %u, %u, %u, %u\n", sensorDatas[0], sensorDatas[1], sensorDatas[2], sensorDatas[3], sensorDatas[4]);
+    Serial.printf("[INFO] Success Parse: [%u, %u, %u, %u, %u]\n",
+                  sensorDatas[0], sensorDatas[1], sensorDatas[2], sensorDatas[3], sensorDatas[4]);
 }
 
 void onErrorHandler(Error error, uint32_t token)
 {
-    ;
+    Serial.printf("[ERROR] token: %d | code: %d\n", token, error);
+    WebSerial.printf("[ERROR] token: %d | code: %d\n", token, error);
 }

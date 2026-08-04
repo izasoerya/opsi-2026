@@ -19,8 +19,8 @@ struct SensorDto
     {
         static char buffer[128];
         snprintf(buffer, sizeof(buffer),
-                 "rain_fall: %.1f\nwind_direction: %s\nwind_speed: %.2f\nair_temperature: %.1f\nair_humidity: %.1f",
-                 rainFall, Parser::parseWindDirection(windDirection), windSpeed, airTemperature, airHumidity);
+                 "Air Temp: %.1f | Air Hum: %.1f | Rain: %.1f | Wind Dir: %s | Wind Spd: %.2f\n",
+                 airTemperature, airHumidity, rainFall, Parser::parseWindDirection(windDirection), windSpeed);
         return buffer;
     }
 
@@ -50,7 +50,7 @@ struct SystemLogDto
     {
         static char buffer[128];
         snprintf(buffer, sizeof(buffer),
-                 "freeHeap: %lu\nfreeBlock: %lu\nminFreeHeap: %lu\nResetReason: %s",
+                 "Free Heap: %lu | Free Block: %lu | Min Free Heap: %lu | Reset Reason: %s",
                  freeHeap, largestFreeBlock, minFreeHeap, Parser::parseResetReasonESP(lastResetReason));
         return buffer;
     }

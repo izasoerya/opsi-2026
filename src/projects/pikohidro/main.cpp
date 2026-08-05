@@ -82,6 +82,7 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 AppState state = AppState::NORMAL_MODE;
 uint64_t prevSendBlynk = 0;
 uint64_t prevSampling = 0;
+uint64_t prevSensorLog = 0;
 uint8_t adsSensorCounter = 0;
 AsyncWebServer server(80);
 int16_t arrayADS[3];
@@ -115,6 +116,20 @@ void setup()
     inaOutput.setMaxCurrentShunt(5, 0.001);
 
     WebSerial.begin(&server);
+    WebSerial.onMessage(
+        [&](uint8_t *data, size_t len)
+        {
+            String req;
+            req.reserve(len + 1);
+            for (size_t i = 0; i < len; i++)
+                req += (char)data[i];
+            req.trim();
+            if (req == "DEBUG_ADS")
+                state = AppState::ENABLE_LOGGING_ADS;
+            else if (req == "NORMAL")
+                state = AppState::NORMAL_MODE;
+        });
+
     ElegantOTA.begin(&server);
     ElegantOTA.setAutoReboot(true);
 
@@ -160,6 +175,15 @@ void loop()
         prevSampling = millis();
     }
 
+    if (millis() - prevSensorLog > 250 && state == AppState::ENABLE_LOGGING_ADS)
+    {
+        prevSensorLog = millis();
+        Serial.printf("TDS: %d | PH: %d | Turb: %d\n",
+                      tdsSensor.readRawVoltage(), phSensor.readRawVoltage(), turbiditySensor.readRawVoltage());
+        WebSerial.printf("TDS: %d | PH: %d | Turb: %d\n",
+                         tdsSensor.readRawVoltage(), phSensor.readRawVoltage(), turbiditySensor.readRawVoltage());
+    }
+
     if (millis() - prevSendBlynk > 30000)
     {
         const char *sensorString = sensor.toString();
@@ -179,8 +203,8 @@ void loop()
         blynk.send(BLYNK_TURBIDITY_PIN, sensor.waterTurbidity);
         blynk.send(BLYNK_WATER_PH_PIN, sensor.waterPH);
         blynk.send(BLYNK_TDS_PIN, sensor.waterTDS);
-        blynk.send(BLYNK_POWER_IN_PIN, sensor.waterTDS);
-        blynk.send(BLYNK_POWER_OUT_PIN, sensor.waterTDS);
+        blynk.send(BLYNK_POWER_IN_PIN, sensor.powerIn);
+        blynk.send(BLYNK_POWER_OUT_PIN, sensor.powerOut);
 
         lcd.clear();
         lcd.setCursor(0, 0);
@@ -204,11 +228,11 @@ void loop()
 
         lcd.setCursor(0, 3);
         lcd.write(byte(5));
-        lcd.printf("I:%dW", abs(sensor.powerIn));
+        lcd.printf("I:%.1fW", abs(sensor.powerIn));
 
         lcd.setCursor(10, 3);
         lcd.write(byte(5));
-        lcd.printf("O:%dW", abs(sensor.powerOut));
+        lcd.printf("O:%.1fW", abs(sensor.powerOut));
 
         prevSendBlynk = millis();
     }

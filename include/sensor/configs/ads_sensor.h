@@ -21,9 +21,14 @@ public:
 
     ~ADSSensor() override = default;
 
+    int16_t readRawVoltage()
+    {
+        return _ads->read(_channel);
+    }
+
     float read() override
     {
-        return _interceptor(_ads->read(_channel));
+        return _interceptor(_ads->read(_channel) / 1000.0F);
     }
 };
 

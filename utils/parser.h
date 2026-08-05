@@ -11,14 +11,6 @@ public:
     Parser() {}
     ~Parser() {}
 
-    static AppState parseCommand(const char *incoming)
-    {
-        if (strcmp(incoming, "OTA") == 0)
-            return AppState::OTA_MODE;
-        else
-            return AppState::NORMAL_MODE;
-    }
-
     static const char *parseWindDirection(WindDirectionEnum direction)
     {
         switch (direction)

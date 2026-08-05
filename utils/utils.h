@@ -4,7 +4,7 @@
 enum AppState
 {
     NORMAL_MODE = 0,
-    OTA_MODE
+    ENABLE_LOGGING_ADS
 };
 
 enum WindDirectionEnum

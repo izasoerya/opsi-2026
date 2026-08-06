@@ -13,14 +13,14 @@ struct SensorDto
     const WindDirectionEnum windDirection;
     const float airTemperature;
     const float airHumidity;
-    const char timestamp[9];
+    const float rainFallGravity;
 
     const char *toString()
     {
         static char buffer[128];
         snprintf(buffer, sizeof(buffer),
-                 "Air Temp: %.1f | Air Hum: %.1f | Rain: %.1f | Wind Dir: %s | Wind Spd: %.2f\n",
-                 airTemperature, airHumidity, rainFall, Parser::parseWindDirection(windDirection), windSpeed);
+                 "Air Temp: %.1f | Air Hum: %.1f | Rain: %.1f | Rain Gravity: %.1f | Wind Dir: %s | Wind Spd: %.2f\n",
+                 airTemperature, airHumidity, rainFall, rainFallGravity, Parser::parseWindDirection(windDirection), windSpeed);
         return buffer;
     }
 
@@ -35,6 +35,11 @@ struct SensorDto
         doc["humidity"] = airHumidity;
 
         return serializeJson(doc, out, outSize);
+    }
+
+    SensorDto *copyWith()
+    {
+        return this;
     }
 };
 

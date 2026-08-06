@@ -202,7 +202,9 @@ void loop()
         sensor.waterPH = arrayADS[1];
         sensor.lightIntensity = uint16_t(lightIntensitySensor.read()); // These are not using ads so its fine to poll
         sensor.waterTemperature = waterTemperatureSensor.read();       // These are not using ads so its fine to poll
-        sensor.waterLevel = waterLevelSensor.read();
+        sensor.waterLevel = waterLevelSensor.read() - 35.0;
+        if (sensor.waterLevel < 0)
+            sensor.waterLevel = 0;
 
         prevSampling = millis();
     }

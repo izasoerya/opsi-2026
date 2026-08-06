@@ -35,17 +35,28 @@ const uint16_t gmtOffset_sec = 25200;
 const uint16_t daylightOffset_sec = 0;
 
 const char *modbusSlaveUrl = "slave-bandung-persemaian-1";
+const char *modbusSlaveArrUrl = "slave-arr-bandung-persemaian-1";
 const uint16_t modbusSlavePort = 5000;
 ModbusClientTCPasync *modbusClient = nullptr;
+ModbusClientTCPasync *modbusArrClient = nullptr;
 void onDataHandler(ModbusMessage response, uint32_t token);
 void onErrorHandler(Error error, uint32_t token);
+void onDataHandlerArr(ModbusMessage response, uint32_t token);
+void onErrorHandlerArr(Error error, uint32_t token);
 
 const uint32_t deviceId = 1;
 uint32_t prevSamplingMillis = 0;
 uint32_t prevSystemLoggingMillis = 0;
+
 uint32_t stampDataModbusCounter = 0;
+uint32_t stampDataModbusArrCounter = 0;
 uint8_t errorTransactionModbusCounter = 0;
+uint8_t errorTransactionModbusArrCounter = 0;
+
 uint16_t sensorDatas[5];
+uint16_t rainfallGravityData;
+
+#define RAINFALL_GRAVITY
 
 void setup()
 {
@@ -79,6 +90,18 @@ void setup()
         retryCounter++;
     }
 
+#if defined(RAINFALL_GRAVITY)
+    IPAddress modbusSlaveArrIP;
+    IPAddress resolvedArr = wifi.resolveMDNS(modbusSlaveArrUrl);
+    if (resolvedArr != IPAddress(0, 0, 0, 0))
+        modbusSlaveArrIP = resolvedArr;
+    else
+    {
+        Serial.println("Failed to expect tipping bucket gravity");    // Continue with cheap tipping bucket
+        WebSerial.println("Failed to expect tipping bucket gravity"); // Continue with cheap tipping bucket
+    }
+#endif // RAINFALL_GRAVITY
+
     IPAddress modbusSlaveIP;
     IPAddress resolved = wifi.resolveMDNS(modbusSlaveUrl);
     if (resolved != IPAddress(0, 0, 0, 0))
@@ -97,6 +120,15 @@ void setup()
     else
         Serial.println("WireGuard initialization failed!");
 
+#if defined(RAINFALL_GRAVITY)
+    modbusArrClient = new ModbusClientTCPasync(modbusSlaveArrIP, modbusSlavePort);
+    modbusArrClient->connect();
+    modbusArrClient->onDataHandler(&onDataHandlerArr);
+    modbusArrClient->onErrorHandler(&onErrorHandlerArr);
+    modbusArrClient->setTimeout(10000);
+    modbusArrClient->setIdleTimeout(60000);
+#endif // RAINFALL_GRAVITY
+
     modbusClient = new ModbusClientTCPasync(modbusSlaveIP, modbusSlavePort);
     modbusClient->connect();
     modbusClient->onDataHandler(&onDataHandler);
@@ -108,11 +140,11 @@ void setup()
     display.begin();
     display.setHeaderTitle("BANDUNG-SEEDBED-1");
     display.setFooterText("v1.0.0");
-    display.setContainer1("TEMPERATURE", "WAITING FOR DATA...", DisplayColor::ORANGE, IconType::THERMO);
-    display.setContainer2("HUMIDITY", "WAITING FOR DATA...", DisplayColor::BLUE, IconType::DROPLET);
-    display.setContainer3("WIND SPEED", "WAITING FOR DATA...", DisplayColor::TEXT, IconType::WIND);
-    display.setContainer4("WIND DIR", "WAITING FOR DATA...", DisplayColor::YELLOW, IconType::COMPASS);
-    display.setContainer5("RAINFALL", "WAITING FOR DATA...", DisplayColor::TEAL, IconType::RAIN);
+    display.setContainer1("TEMPERATURE", "0 C", DisplayColor::ORANGE, IconType::THERMO);
+    display.setContainer2("HUMIDITY", "0 %RH", DisplayColor::BLUE, IconType::DROPLET);
+    display.setContainer3("WIND SPEED", "0 m/s", DisplayColor::TEXT, IconType::WIND);
+    display.setContainer4("WIND DIR", "North", DisplayColor::YELLOW, IconType::COMPASS);
+    display.setContainer5("RAINFALL", "0 mm/day", DisplayColor::TEAL, IconType::RAIN);
     display.setContainer6("COMPANY", "T4T x ZTS", DisplayColor::GREEN, IconType::COMPANY);
     display.drawLayout(); // one full paint of shells/borders/icons/labels
 }
@@ -151,6 +183,19 @@ void loop()
     {
         prevSamplingMillis = millis();
 
+#if defined(RAINFALL_GRAVITY)
+        Error errArr = modbusArrClient->addRequest(
+            (uint32_t)stampDataModbusArrCounter, // Token
+            1, READ_HOLD_REGISTER, 0, 1);
+        if (errArr != SUCCESS)
+        {
+            ModbusError e(errArr);
+            Serial.printf("Error ARR creating request: %02X - %s\n", (int)e, (const char *)e);
+            WebSerial.printf("Error ARR creating request: %02X - %s\n", (int)e, (const char *)e);
+        }
+        stampDataModbusArrCounter++;
+#endif // RAINFALL_GRAVITY
+
         Error err = modbusClient->addRequest(
             (uint32_t)stampDataModbusCounter, // Token
             1, READ_HOLD_REGISTER, 0, 5);
@@ -160,14 +205,32 @@ void loop()
             Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
             WebSerial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
         }
+        stampDataModbusCounter++;
 
+#if !defined RAINFALL_GRAVITY
         SensorDto sensor{
             .deviceId = deviceId,
             .rainFall = float(sensorDatas[2] / 10.0F),
             .windSpeed = float(sensorDatas[3] / 10.0F),
             .windDirection = static_cast<WindDirectionEnum>(sensorDatas[4]),
             .airTemperature = float(sensorDatas[0] / 10.0F),
-            .airHumidity = float(sensorDatas[1] / 10.0F)};
+            .airHumidity = float(sensorDatas[1] / 10.0F),
+            .rainFallGravity = float(rainfallGravityData / 10.0F),
+        };
+#endif
+
+#if defined(RAINFALL_GRAVITY)
+        SensorDto sensor{
+            .deviceId = deviceId,
+            .rainFall = float(rainfallGravityData / 10.0F),
+            .windSpeed = float(sensorDatas[3] / 10.0F),
+            .windDirection = static_cast<WindDirectionEnum>(sensorDatas[4]),
+            .airTemperature = float(sensorDatas[0] / 10.0F),
+            .airHumidity = float(sensorDatas[1] / 10.0F),
+            .rainFallGravity = float(rainfallGravityData / 10.0F),
+        };
+#endif // RAINFALL_GRAVITY
+
         Serial.println(sensor.toString());
         WebSerial.println(sensor.toString());
 
@@ -213,7 +276,6 @@ void loop()
 
         display.setSignalStrength(wifi.getRssi());
         display.refresh();
-        stampDataModbusCounter++;
     }
 }
 
@@ -239,4 +301,24 @@ void onErrorHandler(Error error, uint32_t token)
     if (errorTransactionModbusCounter > 10)
         ESP.restart();
     errorTransactionModbusCounter++;
+}
+
+void onDataHandlerArr(ModbusMessage response, uint32_t token)
+{
+    errorTransactionModbusArrCounter = 0; // Reset error counter since transaction work again
+
+    uint16_t offset = 3;
+    offset = response.get(offset, rainfallGravityData);
+    Serial.printf("[INFO] Success Parse: [%u]\n",
+                  rainfallGravityData);
+}
+
+void onErrorHandlerArr(Error error, uint32_t token)
+{
+    Serial.printf("[ERROR] token: %d | code: %d\n", token, error);
+    WebSerial.printf("[ERROR] token: %d | code: %d\n", token, error);
+
+    if (errorTransactionModbusArrCounter > 10)
+        ESP.restart();
+    errorTransactionModbusArrCounter++;
 }

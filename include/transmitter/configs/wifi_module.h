@@ -21,17 +21,29 @@ private:
     WiFiBundle _inet;
     BasicHTTPTransport *basicConfig = nullptr;
     SupabaseTransport *supabaseConfig = nullptr;
+    wifi_power_t _txCConfig;
 
 public:
-    WiFiModule(const char *ssid, const char *password, const char *hostname)
-        : _inet(WiFiBundle(ssid, password, hostname)) {}
+    WiFiModule(
+        const char *ssid, const char *password, const char *hostname,
+        wifi_power_t txConfig = WIFI_POWER_19_5dBm)
+        : _txCConfig(txConfig), _inet(WiFiBundle(ssid, password, hostname, &_txCConfig)) {}
     ~WiFiModule() override = default;
 
-    const char *localIP() { return _inet.localIP(); }
+    const char *localIP()
+    {
+        return _inet.localIP();
+    }
 
-    void setTransport(BasicHTTPTransport *basicTransport) { basicConfig = basicTransport; }
+    void setTransport(BasicHTTPTransport *basicTransport)
+    {
+        basicConfig = basicTransport;
+    }
 
-    void setTransport(SupabaseTransport *supabaseTransport) { supabaseConfig = supabaseTransport; }
+    void setTransport(SupabaseTransport *supabaseTransport)
+    {
+        supabaseConfig = supabaseTransport;
+    }
 
     bool begin()
     {

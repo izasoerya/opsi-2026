@@ -7,7 +7,7 @@
 #include "transmitter/configs/wifi_module.h"
 #include <esp_task_wdt.h>
 
-const char *ssid = "NodeSensorWiFi1";
+const char *ssid = "Subhanallah";
 const char *password = "muhammadnabiyullah";
 const char *hostname = "bandung-spas-1";
 WiFiModule wifi(ssid, password, hostname);

@@ -5,6 +5,7 @@
 
 #include "config.h" // .env
 #include "transmitter/configs/wifi_module.h"
+#include <esp_task_wdt.h>
 
 const char *ssid = "NodeSensorWiFi1";
 const char *password = "muhammadnabiyullah";
@@ -20,10 +21,12 @@ const int daylightOffset_sec = 0;
 void setup()
 {
     Serial.begin(115200);
+
+    esp_task_wdt_init(60, true);
+    esp_task_wdt_add(NULL);
+
     if (wifi.begin())
-    {
         Serial.printf("Connected with IP: %s\n", wifi.localIP());
-    }
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(200, "text/plain", "Test Successful!"); });
@@ -72,6 +75,7 @@ uint32_t prevLogTime = 0;
 
 void loop()
 {
+    esp_task_wdt_reset();
     wifi.reconnect();
     ElegantOTA.loop();
 
